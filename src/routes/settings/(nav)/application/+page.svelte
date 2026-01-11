@@ -5,6 +5,7 @@
 
 	import { useSettingsStore } from "$lib/stores/settings";
 	import Switch from "$lib/components/Switch.svelte";
+	import ElectronAppearanceSettings from "$lib/components/ElectronAppearanceSettings.svelte";
 
 	import { goto } from "$app/navigation";
 	import { error } from "$lib/stores/errors";
@@ -314,6 +315,9 @@
 				</div>
 			</div>
 		{/if}
+
+		<!-- Electron Appearance Settings -->
+		<ElectronAppearanceSettings />
 
 		<div class="mt-6 flex flex-col gap-2 self-start text-[13px]">
 			{#if publicConfig.isHuggingChat}
