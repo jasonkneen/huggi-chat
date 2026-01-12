@@ -40,6 +40,46 @@
 
 	let isNavCollapsed = $state(false);
 
+	// Resizable nav panel
+	let navWidth = $state(290);
+	let isResizing = $state(false);
+
+	onMount(() => {
+		// Load saved width from localStorage
+		const saved = localStorage.getItem('navWidth');
+		if (saved) {
+			const parsed = parseInt(saved, 10);
+			if (parsed >= 200 && parsed <= 600) {
+				navWidth = parsed;
+			}
+		}
+	});
+
+	function startResize(e: MouseEvent) {
+		isResizing = true;
+		e.preventDefault();
+
+		const startX = e.clientX;
+		const startWidth = navWidth;
+
+		const onMouseMove = (e: MouseEvent) => {
+			if (!isResizing) return;
+			const delta = e.clientX - startX;
+			const newWidth = Math.max(200, Math.min(600, startWidth + delta));
+			navWidth = newWidth;
+		};
+
+		const onMouseUp = () => {
+			isResizing = false;
+			localStorage.setItem('navWidth', String(navWidth));
+			window.removeEventListener('mousemove', onMouseMove);
+			window.removeEventListener('mouseup', onMouseUp);
+		};
+
+		window.addEventListener('mousemove', onMouseMove);
+		window.addEventListener('mouseup', onMouseUp);
+	}
+
 	let errorToastTimeout: ReturnType<typeof setTimeout>;
 	let currentError: string | undefined = $state();
 
@@ -249,18 +289,9 @@
 <BackgroundGenerationPoller />
 
 <div
-	class="fixed grid h-full w-screen grid-cols-1 grid-rows-[auto,1fr] overflow-hidden bg-white text-smd dark:bg-transparent dark:text-gray-300 md:grid-rows-[1fr] {!isNavCollapsed
-		? 'md:grid-cols-[290px,1fr]'
-		: 'md:grid-cols-[0px,1fr]'} transition-[300ms] [transition-property:grid-template-columns]"
+	class="fixed grid h-full w-screen overflow-hidden bg-white text-smd dark:bg-transparent dark:text-gray-300 {isResizing ? '' : 'transition-[300ms] [transition-property:grid-template-columns]'}"
+	style="grid-template-columns: {!isNavCollapsed ? `${navWidth}px 1fr` : '0px 1fr'}; grid-template-rows: auto 1fr;"
 >
-	<ExpandNavigation
-		isCollapsed={isNavCollapsed}
-		onClick={() => (isNavCollapsed = !isNavCollapsed)}
-		classNames="absolute inset-y-0 z-10 my-auto {!isNavCollapsed
-			? 'left-[290px]'
-			: 'left-0'} *:transition-transform"
-	/>
-
 	{#if canShare}
 		<button
 			type="button"
@@ -283,15 +314,36 @@
 		/>
 	</MobileNav>
 	<nav
-		class="grid max-h-dvh grid-cols-1 grid-rows-[auto,1fr,auto] overflow-hidden pt-6 *:w-[290px] max-md:hidden"
+		class="relative grid max-h-dvh grid-cols-1 grid-rows-[auto,1fr,auto] overflow-hidden pt-6 max-md:hidden {isResizing ? '' : 'transition-all duration-300'}"
+		style="width: {isNavCollapsed ? '0px' : `${navWidth}px`};"
 	>
-		<NavMenu
-			{conversations}
-			user={data.user}
-			ondeleteConversation={(id) => deleteConversation(id)}
-			oneditConversationTitle={(payload) => editConversationTitle(payload.id, payload.title)}
-		/>
+		<div class="contents {isResizing ? '' : 'transition-opacity duration-150'}" style="opacity: {isNavCollapsed ? 0 : 1};">
+			<NavMenu
+				{conversations}
+				user={data.user}
+				ondeleteConversation={(id) => deleteConversation(id)}
+				oneditConversationTitle={(payload) => editConversationTitle(payload.id, payload.title)}
+			/>
+		</div>
+
+		<!-- Resize handle - wide hit area, thin visual -->
+		<div
+			class="absolute right-0 top-0 h-full w-3 -translate-x-1 cursor-col-resize transition-colors"
+			onmousedown={startResize}
+			role="separator"
+			aria-label="Resize navigation panel"
+		>
+			<div class="absolute right-1 top-0 h-full w-0.5 bg-transparent hover:bg-gray-700/40 dark:hover:bg-gray-600/40 transition-colors pointer-events-none"></div>
+		</div>
 	</nav>
+
+	<!-- Collapse button - positioned outside nav so it's always visible -->
+	<ExpandNavigation
+		isCollapsed={isNavCollapsed}
+		onClick={() => (isNavCollapsed = !isNavCollapsed)}
+		classNames="absolute inset-y-0 z-10 my-auto *:transition-transform"
+		style="left: {isNavCollapsed ? 0 : navWidth - 8}px; transition: left 300ms;"
+	/>
 	{#if currentError}
 		<Toast message={currentError} />
 	{/if}

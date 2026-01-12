@@ -156,13 +156,13 @@
 </script>
 
 <div
-	class="sticky top-0 flex flex-none touch-none items-center justify-between px-1.5 py-3.5 max-sm:pt-0"
+	class="sticky top-0 flex flex-none touch-none items-center justify-between px-3 py-3.5 max-sm:pt-0"
 >
 	<a
-		class="flex select-none items-center rounded-xl text-lg font-semibold"
+		class="flex select-none items-center gap-2 rounded-xl text-lg font-semibold"
 		href="{publicConfig.PUBLIC_ORIGIN}{base}/"
 	>
-		<Logo classNames="dark:invert mr-[2px]" />
+		<img src="/chatui/robot-avatar.png" alt="Logo" class="size-10 object-contain" />
 		{publicConfig.PUBLIC_APP_NAME}
 	</a>
 	<a

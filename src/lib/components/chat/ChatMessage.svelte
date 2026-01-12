@@ -261,11 +261,11 @@
 		onkeydown={() => (isTapped = !isTapped)}
 	>
 		<MessageAvatar
-			classNames="mt-5 size-3.5 flex-none select-none rounded-full shadow-lg max-sm:hidden"
+			classNames="mt-2 size-8 flex-none select-none object-contain max-sm:hidden"
 			animating={isLast && loading}
 		/>
 		<div
-			class="relative flex min-w-[60px] flex-col gap-2 break-words rounded-2xl border border-[0.5px] border-gray-100 bg-gradient-to-br from-gray-50 px-5 py-3.5 text-gray-600 prose-pre:my-2 dark:border-gray-600 dark:from-gray-800/80 dark:text-gray-300"
+			class="relative flex min-w-[60px] flex-col gap-2 break-words rounded-2xl border border-[0.5px] border-gray-100 bg-gradient-to-br from-gray-50 px-5 py-2 text-gray-600 prose-pre:my-2 dark:border-gray-600 dark:from-gray-800/80 dark:text-gray-300"
 		>
 			{#if message.files?.length}
 				<div class="flex h-fit flex-wrap gap-x-5 gap-y-2">

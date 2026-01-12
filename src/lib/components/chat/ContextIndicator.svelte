@@ -52,7 +52,8 @@ Guidelines:
 	}
 
 	const contextBreakdown = $derived.by(() => {
-		const maxContext = currentModel.parameters?.truncate ?? 128000;
+		// Use model's actual context length
+		const maxContext = currentModel.parameters?.truncate ?? currentModel.contextLength ?? 128000;
 
 		// System prompt order (matching server-side runMcpFlow.ts):
 		// 1. Tool preprompt (MCP instructions + tool list)
@@ -139,10 +140,9 @@ Guidelines:
 <div class="flex flex-1 items-center gap-2">
 	<!-- Container fills available space -->
 	<div class="relative h-2.5 flex-1">
-		<!-- Colored bar: width = % used, colors fill it -->
+		<!-- Colored bar: always 100% width, segments show breakdown of used tokens -->
 		<div
-			class="absolute left-0 top-0 flex h-full overflow-hidden rounded-full transition-all duration-500"
-			style="width: {usagePercent}%; min-width: 12px;"
+			class="absolute left-0 top-0 flex h-full w-full overflow-hidden rounded-full opacity-70 transition-all duration-500"
 			title="Context: {contextBreakdown.used.toLocaleString()} / {contextBreakdown.total.toLocaleString()} tokens ({usagePercent}%)"
 		>
 			{#each segments as seg}

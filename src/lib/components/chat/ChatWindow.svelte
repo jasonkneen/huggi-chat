@@ -864,9 +864,6 @@
 					<ContextIndicator {messages} {currentModel} {preprompt} tools={availableTools} />
 				</div>
 
-				{#if !messages.length && !loading}
-					<span class="ml-2 max-sm:hidden">Generated content may be inaccurate or false.</span>
-				{/if}
 			</div>
 		</div>
 		</div><!-- Close centered content container -->
