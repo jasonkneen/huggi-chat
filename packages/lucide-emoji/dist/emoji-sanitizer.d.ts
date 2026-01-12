@@ -27,11 +27,14 @@ export declare function sanitizeEmojis(text: string, options?: SanitizeOptions):
  * Parse Lucide tags from LLM output (e.g., <smile/>, <Clock/>, <heart-icon/>)
  * and convert to a structured format for rendering
  */
-export interface ParsedContent {
-    type: 'text' | 'icon';
+export type ParsedContent = {
+    type: 'text';
     content: string;
-    iconName?: string;
-}
+} | {
+    type: 'icon';
+    content: string;
+    iconName: string;
+};
 export declare function parseLucideTags(text: string): ParsedContent[];
 /**
  * Extract all emojis from text with their positions

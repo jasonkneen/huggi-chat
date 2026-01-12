@@ -11,6 +11,9 @@ import type { EndpointMessage } from "../endpoints/endpoints";
 import { logger } from "../logger";
 import { thinkingTokensMap } from "$lib/stores/thinkingLevel";
 import { randomUUID } from "crypto";
+import { getMcpServers } from "../mcp/registry";
+import { getOpenAiToolsForMcp } from "../mcp/tools";
+import { buildToolPreprompt } from "./utils/toolPrompt";
 
 type GenerateContext = Omit<TextGenerationContext, "messages"> & { messages: EndpointMessage[] };
 
@@ -25,12 +28,45 @@ export async function* generateClaudeAgentSdk(
 
 	const lastUserMessage = messages.filter((m) => m.from === "user").pop();
 	const prompt = lastUserMessage?.content || "";
-	const systemPrompt = preprompt || undefined;
 
 	const thinkingLevel = (locals as unknown as Record<string, unknown>)?.thinkingLevel as
 		| number
 		| undefined;
 	const budgetTokens = thinkingLevel !== undefined ? thinkingTokensMap[thinkingLevel] : undefined;
+
+	// Load MCP tools for this request
+	let systemPrompt = preprompt || "";
+	try {
+		const baseServers = getMcpServers();
+		const reqMcp = (
+			locals as unknown as {
+				mcp?: {
+					selectedServers?: Array<{ name: string; url: string; headers?: Record<string, string> }>;
+					selectedServerNames?: string[];
+				};
+			}
+		)?.mcp;
+
+		const selectedServers = Array.isArray(reqMcp?.selectedServers) ? reqMcp.selectedServers : [];
+		const servers = [...baseServers, ...selectedServers];
+
+		if (servers.length > 0) {
+			const { tools, mapping } = await getOpenAiToolsForMcp(servers, {
+				signal: abortController.signal,
+			});
+
+			if (tools.length > 0) {
+				const toolPreprompt = buildToolPreprompt(tools, mapping);
+				systemPrompt = [toolPreprompt, preprompt].filter(Boolean).join("\n\n");
+				logger.info(
+					{ toolCount: tools.length, serverCount: servers.length },
+					"[claude-agent-sdk] Loaded MCP tools"
+				);
+			}
+		}
+	} catch (error) {
+		logger.error({ error }, "[claude-agent-sdk] Failed to load MCP tools, continuing without them");
+	}
 
 	logger.info({ modelId, thinkingLevel, budgetTokens }, "[claude-agent-sdk] Starting generation");
 
@@ -117,8 +153,23 @@ export async function* generateClaudeAgentSdk(
 						let parsedArgs: Record<string, string | number | boolean> = {};
 						try {
 							parsedArgs = JSON.parse(toolInputJson || "{}");
-						} catch {
+						} catch (parseErr) {
+							logger.error({
+								error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+								toolInputJson: toolInputJson.slice(0, 200), // First 200 chars for debugging
+								toolName: currentToolName,
+								toolUseId: currentToolUseId,
+							}, "[claude-agent-sdk] Failed to parse tool input JSON");
+
 							parsedArgs = {};
+
+							// Yield error to UI
+							yield {
+								type: MessageUpdateType.Tool,
+								subtype: MessageToolUpdateType.Error,
+								uuid,
+								message: "Failed to parse tool arguments",
+							};
 						}
 
 						yield {

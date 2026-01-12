@@ -35,7 +35,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			const servers = getMcpServers();
 			for (const server of servers) {
 				try {
-					const client = await getClient({ url: server.url, headers: server.headers ?? {} });
+					const client = await getClient({ name: server.name, url: server.url, headers: server.headers ?? {} });
 					const toolsList = await client.listTools();
 					for (const tool of toolsList.tools) {
 						toolCatalog.push({
@@ -64,7 +64,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		for (const server of servers) {
 			try {
-				const client = await getClient({ url: server.url, headers: server.headers ?? {} });
+				const client = await getClient({ name: server.name, url: server.url, headers: server.headers ?? {} });
 				const toolsList = await client.listTools();
 
 				const hasTool = toolsList.tools.some(t => t.name === toolName);

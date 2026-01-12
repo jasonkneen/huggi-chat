@@ -7,7 +7,7 @@ export {
   emojiToLucide,
   getLucideFromEmoji,
   hasLucideEquivalent
-} from './emoji-to-lucide'
+} from './emoji-to-lucide.js'
 
 export {
   sanitizeEmojis,
@@ -16,4 +16,4 @@ export {
   getEmojiStats,
   type SanitizeOptions,
   type ParsedContent
-} from './emoji-sanitizer'
+} from './emoji-sanitizer.js'

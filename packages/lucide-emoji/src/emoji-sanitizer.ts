@@ -1,4 +1,4 @@
-import { emojiToLucide } from './emoji-to-lucide'
+import { emojiToLucide } from './emoji-to-lucide.js'
 
 export interface SanitizeOptions {
   /**
@@ -70,11 +70,9 @@ export function sanitizeEmojis(text: string, options: SanitizeOptions = {}): str
  * Parse Lucide tags from LLM output (e.g., <smile/>, <Clock/>, <heart-icon/>)
  * and convert to a structured format for rendering
  */
-export interface ParsedContent {
-  type: 'text' | 'icon'
-  content: string
-  iconName?: string
-}
+export type ParsedContent =
+  | { type: 'text'; content: string }
+  | { type: 'icon'; content: string; iconName: string }
 
 export function parseLucideTags(text: string): ParsedContent[] {
   const parts: ParsedContent[] = []

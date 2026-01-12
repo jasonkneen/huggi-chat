@@ -1,4 +1,4 @@
-import { emojiToLucide } from './emoji-to-lucide';
+import { emojiToLucide } from './emoji-to-lucide.js';
 /**
  * Replace emojis in text with Lucide icon tags
  */

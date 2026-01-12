@@ -36,8 +36,8 @@ function loadFromStorage(): WorkspacesState {
 			const parsed = JSON.parse(stored);
 			return { ...defaultState, ...parsed };
 		}
-	} catch {
-		// ignore
+	} catch (e) {
+		console.error("Failed to load workspaces from storage:", e);
 	}
 
 	return defaultState;
@@ -47,8 +47,8 @@ function saveToStorage(state: WorkspacesState) {
 	if (!browser) return;
 	try {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-	} catch {
-		// ignore
+	} catch (e) {
+		console.error("Failed to save workspaces to storage:", e);
 	}
 }
 

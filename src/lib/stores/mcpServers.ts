@@ -9,6 +9,7 @@ import { base } from "$app/paths";
 import { env as publicEnv } from "$env/dynamic/public";
 import { browser } from "$app/environment";
 import type { MCPServer, ServerStatus, MCPTool } from "$lib/types/Tool";
+import { loadFromStorage, saveToStorage } from "$lib/utils/localStorage";
 
 // Namespace storage by app identity to avoid collisions across apps
 function toKeyPart(s: string | undefined): string {
@@ -30,75 +31,34 @@ const STORAGE_KEYS = {
 
 // Load custom servers from localStorage
 function loadCustomServers(): MCPServer[] {
-	if (!browser) return [];
-
-	try {
-		const json = localStorage.getItem(STORAGE_KEYS.CUSTOM_SERVERS);
-		return json ? JSON.parse(json) : [];
-	} catch (error) {
-		console.error("Failed to load custom MCP servers from localStorage:", error);
-		return [];
-	}
+	return loadFromStorage<MCPServer[]>(STORAGE_KEYS.CUSTOM_SERVERS, []);
 }
 
 // Load selected server IDs from localStorage
 function loadSelectedIds(): Set<string> {
-	if (!browser) return new Set();
-
-	try {
-		const json = localStorage.getItem(STORAGE_KEYS.SELECTED_IDS);
-		const ids: string[] = json ? JSON.parse(json) : [];
-		return new Set(ids);
-	} catch (error) {
-		console.error("Failed to load selected MCP server IDs from localStorage:", error);
-		return new Set();
-	}
+	const ids = loadFromStorage<string[]>(STORAGE_KEYS.SELECTED_IDS, []);
+	return new Set(ids);
 }
 
 // Save custom servers to localStorage
 function saveCustomServers(servers: MCPServer[]) {
-	if (!browser) return;
-
-	try {
-		localStorage.setItem(STORAGE_KEYS.CUSTOM_SERVERS, JSON.stringify(servers));
-	} catch (error) {
-		console.error("Failed to save custom MCP servers to localStorage:", error);
-	}
+	saveToStorage(STORAGE_KEYS.CUSTOM_SERVERS, servers);
 }
 
 // Save selected IDs to localStorage
 function saveSelectedIds(ids: Set<string>) {
-	if (!browser) return;
-
-	try {
-		localStorage.setItem(STORAGE_KEYS.SELECTED_IDS, JSON.stringify([...ids]));
-	} catch (error) {
-		console.error("Failed to save selected MCP server IDs to localStorage:", error);
-	}
+	saveToStorage(STORAGE_KEYS.SELECTED_IDS, [...ids]);
 }
 
 // Load disabled base server IDs from localStorage (empty set if missing or on error)
 function loadDisabledBaseIds(): Set<string> {
-	if (!browser) return new Set();
-
-	try {
-		const json = localStorage.getItem(STORAGE_KEYS.DISABLED_BASE_IDS);
-		return new Set(json ? JSON.parse(json) : []);
-	} catch (error) {
-		console.error("Failed to load disabled base MCP server IDs from localStorage:", error);
-		return new Set();
-	}
+	const ids = loadFromStorage<string[]>(STORAGE_KEYS.DISABLED_BASE_IDS, []);
+	return new Set(ids);
 }
 
 // Save disabled base server IDs to localStorage
 function saveDisabledBaseIds(ids: Set<string>) {
-	if (!browser) return;
-
-	try {
-		localStorage.setItem(STORAGE_KEYS.DISABLED_BASE_IDS, JSON.stringify([...ids]));
-	} catch (error) {
-		console.error("Failed to save disabled base MCP server IDs to localStorage:", error);
-	}
+	saveToStorage(STORAGE_KEYS.DISABLED_BASE_IDS, [...ids]);
 }
 
 // Store for all servers (base + custom)
@@ -180,6 +140,9 @@ export async function refreshMcpServers() {
 			return newSelection;
 		});
 		mcpServersLoaded.set(true);
+
+		// Run health checks for all servers after refresh
+		await Promise.allSettled(merged.map((server) => healthCheckServer(server)));
 	} catch (error) {
 		console.error("Failed to refresh MCP servers:", error);
 		// On error, just use custom servers

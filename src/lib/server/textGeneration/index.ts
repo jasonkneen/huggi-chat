@@ -1,4 +1,6 @@
 import { preprocessMessages } from "../endpoints/preprocessMessages";
+import { logger } from "../logger";
+import { logMcpDebug } from "../mcp/debugLog";
 
 import { generateTitleForConversation } from "./title";
 import {
@@ -51,15 +53,7 @@ async function* textGenerationWithoutTitle(
 	const processedMessages = await preprocessMessages(messages, convId);
 
 	const endpointType = ctx.model.endpoints?.[0]?.type;
-	console.log("[textGeneration] model check:", {
-		modelId: ctx.model.id,
-		hasEndpoints: !!ctx.model.endpoints,
-		endpointsLength: ctx.model.endpoints?.length,
-		firstEndpointType: endpointType,
-		allEndpoints: ctx.model.endpoints,
-	});
 	if (endpointType === "claude-agent-sdk") {
-		console.log("[textGeneration] Routing to generateClaudeAgentSdk");
 		yield* generateClaudeAgentSdk({ ...ctx, messages: processedMessages }, preprompt);
 		done.abort();
 		return;
@@ -87,7 +81,19 @@ async function* textGenerationWithoutTitle(
 		if (!didRunMcp) {
 			yield* generate({ ...ctx, messages: processedMessages }, preprompt);
 		}
-	} catch {
+	} catch (err) {
+		logger.error({
+			error: err instanceof Error ? err.message : String(err),
+			stack: err instanceof Error ? err.stack : undefined,
+			modelId: ctx.model.id,
+		}, "[mcp] MCP flow failed, falling back to default generation");
+
+		void logMcpDebug({
+			event: "mcp_fallback",
+			model: ctx.model.id ?? ctx.model.name,
+			error: String(err),
+		});
+
 		yield* generate({ ...ctx, messages: processedMessages }, preprompt);
 	}
 	done.abort();

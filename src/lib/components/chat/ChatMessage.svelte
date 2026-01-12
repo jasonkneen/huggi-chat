@@ -293,7 +293,11 @@
 							<AskUserQuestionForm
 								questions={block.update.questions}
 								onsubmit={(answers) => {
-									// TODO: Handle submission back to the model
+									// TODO: Implement answer submission to continue agent conversation
+									// This requires:
+									// 1. Add an 'onQuestionAnswer' callback prop to ChatMessage
+									// 2. Pass answers back to the agent context (Claude Agent SDK / MCP flow)
+									// 3. Allow agent to resume with user's responses
 									console.log("Question answers:", answers);
 								}}
 							/>

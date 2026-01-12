@@ -112,21 +112,13 @@
 			const args = spaceIdx === -1 ? "" : trimmed.slice(spaceIdx + 1).trim();
 
 			const allCmds = getSlashCommands();
-			console.log(
-				"[SlashCmd] Looking for:",
-				cmdName,
-				"in",
-				allCmds.map((c) => c.name)
-			);
 
 			const cmd = allCmds.find((c) => c.name.toLowerCase() === cmdName.toLowerCase());
 			if (cmd) {
-				console.log("[SlashCmd] Found command:", cmd.name);
 				draft = "";
 				await handleCommand(cmd, args);
 				return;
 			}
-			console.log("[SlashCmd] Command not found, sending as message");
 		}
 
 		onmessage?.(draft);
@@ -557,7 +549,7 @@
 	}}
 />
 
-<div class="relative z-[-1] h-full min-w-0 bg-white dark:bg-transparent">
+<div class="relative z-0 h-full min-w-0 bg-white dark:bg-transparent">
 	<!-- Top gradient fade -->
 	<div
 		class="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-16 w-full
@@ -717,7 +709,7 @@
 					handleSubmit();
 				}}
 				class={{
-					"relative flex w-full max-w-4xl flex-1 items-center rounded-xl border border-[0.5px] bg-gray-100 dark:border-gray-600 dark:bg-gray-800": true,
+					"pointer-events-auto relative flex w-full max-w-4xl flex-1 items-center rounded-xl border border-[0.5px] bg-gray-100 dark:border-gray-600 dark:bg-gray-800": true,
 					"opacity-30": isReadOnly,
 					"max-sm:mb-4": focused && isVirtualKeyboard(),
 					"processing-glow": loading,

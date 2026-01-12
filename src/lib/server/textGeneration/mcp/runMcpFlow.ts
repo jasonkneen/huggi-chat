@@ -635,7 +635,7 @@ export async function* runMcpFlow({
 
 			const toolChoice =
 				loop === 0 && forcedToolName
-					? { type: "function", function: { name: forcedToolName } }
+					? { type: "function" as const, function: { name: forcedToolName } }
 					: "auto";
 			const completionRequest: ChatCompletionCreateParamsStreaming = {
 				...completionBase,

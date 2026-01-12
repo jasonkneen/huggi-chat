@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { parseLucideTags } from '$lib/utils/lucide-emoji/emoji-sanitizer'
+  import { parseLucideTags } from '@yourusername/lucide-emoji/sanitizer'
   import MarkdownRenderer from './MarkdownRenderer.svelte'
   import LucideIcon from './LucideIcon.svelte'
 

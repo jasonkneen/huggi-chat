@@ -12,7 +12,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		// Get HTTP/MCP tools
 		const { tools: mcpTools } = servers.length > 0
 			? await getOpenAiToolsForMcp(servers, {})
-			: { tools: [], mapping: {} };
+			: { tools: [] };
 
 		// Get local workspace tools - pass dummy workspace to get all tools for debugging
 		const workspaces = (locals as { workspaces?: Array<{ name: string; path: string; isGitRepo: boolean }> })?.workspaces ?? [];

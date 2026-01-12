@@ -337,6 +337,8 @@
 			event.preventDefault();
 			tick();
 			onsubmit?.();
+			// Refocus textarea after submit
+			queueMicrotask(() => void focusTextarea());
 		}
 	}
 

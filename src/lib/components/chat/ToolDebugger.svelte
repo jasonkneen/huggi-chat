@@ -94,63 +94,6 @@
 		return mockData;
 	}
 
-	function generateMockOutput(tool: ToolWithParams): string {
-		const examples: Record<string, string> = {
-			read_file: JSON.stringify(
-				{ text: "File contents would appear here...\nLine 1\nLine 2\nLine 3" },
-				null,
-				2
-			),
-			list_files: JSON.stringify(
-				{
-					content: [
-						{ type: "text", text: "file1.ts\nfile2.ts\nsrc/\n  component.svelte\n  utils.ts" },
-					],
-				},
-				null,
-				2
-			),
-			search_code: JSON.stringify(
-				{
-					content: [
-						{
-							type: "text",
-							text: "Found 3 matches:\n\nfile.ts:42: const result = searchCode()\nutils.ts:15: // searchCode helper\ntest.ts:8: expect(searchCode()).toBe(true)",
-						},
-					],
-				},
-				null,
-				2
-			),
-			execute_command: JSON.stringify(
-				{ content: [{ type: "text", text: "Command output:\n\n✓ Build successful\n  Generated 42 files" }] },
-				null,
-				2
-			),
-		};
-
-		// Check if we have a specific example for this tool
-		for (const [pattern, output] of Object.entries(examples)) {
-			if (tool.name.toLowerCase().includes(pattern)) {
-				return output;
-			}
-		}
-
-		// Generic mock output
-		return JSON.stringify(
-			{
-				content: [
-					{
-						type: "text",
-						text: `Mock output for ${tool.displayName || tool.name}:\n\nOperation completed successfully.\nProcessed items: 5\nTime taken: 1.2s`,
-					},
-				],
-			},
-			null,
-			2
-		);
-	}
-
 	async function executeMockTool(tool: ToolWithParams) {
 		selectedTool = tool;
 		isExecuting = true;
