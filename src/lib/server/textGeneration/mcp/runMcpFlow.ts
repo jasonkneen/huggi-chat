@@ -3,7 +3,7 @@ import { MessageUpdateType, type MessageUpdate } from "$lib/types/MessageUpdate"
 import { getMcpServers } from "$lib/server/mcp/registry";
 import { isValidUrl } from "$lib/server/urlSafety";
 import { resetMcpToolsCache } from "$lib/server/mcp/tools";
-import { getOpenAiToolsForMcp } from "$lib/server/mcp/tools";
+import { getOpenAiToolsForMcp, type OpenAiTool } from "$lib/server/mcp/tools";
 import type {
 	ChatCompletionChunk,
 	ChatCompletionCreateParamsStreaming,
@@ -14,7 +14,11 @@ import type { Stream } from "openai/streaming";
 import { buildToolPreprompt } from "../utils/toolPrompt";
 import type { EndpointMessage } from "../../endpoints/endpoints";
 import { resolveRouterTarget } from "./routerResolution";
-import { executeToolCalls, type NormalizedToolCall } from "./toolInvocation";
+import {
+	executeToolCalls,
+	type NormalizedToolCall,
+	type ExtendedToolMapping,
+} from "./toolInvocation";
 import { drainPool } from "$lib/server/mcp/clientPool";
 import type { TextGenerationContext } from "../types";
 import { hasAuthHeader, isStrictHfMcpLogin, hasNonEmptyToken } from "$lib/server/mcp/hf";
@@ -22,6 +26,13 @@ import { buildImageRefResolver } from "./fileRefs";
 import { prepareMessagesWithFiles } from "$lib/server/textGeneration/utils/prepareFiles";
 import { makeImageProcessor } from "$lib/server/endpoints/images";
 import { logger } from "$lib/server/logger";
+
+export interface StdioToolDefinition {
+	serverId: string;
+	name: string;
+	description?: string;
+	inputSchema?: Record<string, unknown>;
+}
 
 export type RunMcpFlowContext = Pick<
 	TextGenerationContext,
@@ -234,10 +245,57 @@ export async function* runMcpFlow({
 		return false;
 	}
 
-	const { tools: oaTools, mapping } = await getOpenAiToolsForMcp(servers, { signal: abortSignal });
+	const { tools: httpTools, mapping: httpMapping } = await getOpenAiToolsForMcp(servers, {
+		signal: abortSignal,
+	});
+
+	const extendedMapping: Record<string, ExtendedToolMapping> = {};
+	for (const [name, entry] of Object.entries(httpMapping)) {
+		extendedMapping[name] = { ...entry, isStdio: false };
+	}
+
+	const stdioToolDefs =
+		(locals as unknown as { mcp?: { stdioTools?: StdioToolDefinition[] } })?.mcp?.stdioTools ?? [];
+
+	const stdioTools: OpenAiTool[] = [];
+	const seenNames = new Set(Object.keys(extendedMapping));
+
+	for (const tool of stdioToolDefs) {
+		let fnName = tool.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+		if (seenNames.has(fnName)) {
+			const suffix = tool.serverId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 20);
+			fnName = `${fnName}_${suffix}`.slice(0, 64);
+		}
+		if (seenNames.has(fnName)) continue;
+
+		seenNames.add(fnName);
+		stdioTools.push({
+			type: "function",
+			function: {
+				name: fnName,
+				description: tool.description,
+				parameters: tool.inputSchema,
+			},
+		});
+		extendedMapping[fnName] = {
+			fnName,
+			server: tool.serverId,
+			tool: tool.name,
+			isStdio: true,
+			serverId: tool.serverId,
+		};
+	}
+
+	const oaTools = [...httpTools, ...stdioTools];
+
 	try {
 		logger.info(
-			{ toolCount: oaTools.length, toolNames: oaTools.map((t) => t.function.name) },
+			{
+				httpToolCount: httpTools.length,
+				stdioToolCount: stdioTools.length,
+				totalToolCount: oaTools.length,
+				toolNames: oaTools.map((t) => t.function.name),
+			},
 			"[mcp] openai tool defs built"
 		);
 	} catch {}
@@ -591,7 +649,7 @@ export async function* runMcpFlow({
 
 				const exec = executeToolCalls({
 					calls,
-					mapping,
+					mapping: extendedMapping,
 					servers,
 					parseArgs,
 					resolveFileRef,

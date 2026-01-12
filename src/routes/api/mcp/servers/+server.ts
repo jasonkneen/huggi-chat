@@ -17,15 +17,14 @@ export async function GET() {
 		servers = [];
 	}
 
-	// Convert internal server config to client MCPServer format
 	const mcpServers: MCPServer[] = servers.map((server) => ({
-		id: `base-${server.name}`, // Stable ID based on name
+		id: `base-${server.name}`,
 		name: server.name,
 		url: server.url,
+		transport: "http" as const,
 		type: "base" as const,
-		// headers intentionally omitted
-		isLocked: false, // Base servers can be toggled by users
-		status: undefined, // Status determined client-side via health check
+		isLocked: false,
+		status: undefined,
 	}));
 
 	return Response.json(mcpServers);

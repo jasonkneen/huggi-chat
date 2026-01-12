@@ -10,6 +10,11 @@ body {
 	touch-action: pan-x pan-y;
 }
 
+/* macOS traffic light safe area for Electron frameless windows */
+.macos-safe-area {
+	padding-top: env(titlebar-area-height, 28px);
+}
+
 @layer components {
 	.btn {
 		@apply inline-flex flex-shrink-0 cursor-pointer select-none items-center justify-center whitespace-nowrap outline-none transition-all focus:ring disabled:cursor-default;

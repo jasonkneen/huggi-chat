@@ -128,6 +128,7 @@ export async function POST({ request, locals, params, getClientAddress }) {
 		is_retry: isRetry,
 		selectedMcpServerNames,
 		selectedMcpServers,
+		stdioTools,
 	} = z
 		.object({
 			id: z.string().uuid().refine(isMessageId).optional(), // parent message id to append to for a normal message, or the message id for a retry/continue
@@ -152,6 +153,18 @@ export async function POST({ request, locals, params, getClientAddress }) {
 					)
 				)
 				.default([]),
+			stdioTools: z
+				.optional(
+					z.array(
+						z.object({
+							serverId: z.string(),
+							name: z.string(),
+							description: z.optional(z.string()),
+							inputSchema: z.optional(z.record(z.unknown())),
+						})
+					)
+				)
+				.default([]),
 			files: z.optional(
 				z.array(
 					z.object({
@@ -165,7 +178,6 @@ export async function POST({ request, locals, params, getClientAddress }) {
 		})
 		.parse(JSON.parse(json));
 
-	// Attach MCP selection to locals so the text generation pipeline can consume it
 	try {
 		(locals as unknown as Record<string, unknown>).mcp = {
 			selectedServerNames: selectedMcpServerNames,
@@ -177,6 +189,7 @@ export async function POST({ request, locals, params, getClientAddress }) {
 						? Object.fromEntries(s.headers.map((h) => [h.key, h.value]))
 						: undefined,
 			})),
+			stdioTools: stdioTools ?? [],
 		};
 	} catch {
 		// ignore attachment errors, pipeline will just use env servers

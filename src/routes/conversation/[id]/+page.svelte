@@ -17,7 +17,8 @@
 	import { fetchMessageUpdates } from "$lib/utils/messageUpdates";
 	import type { v4 } from "uuid";
 	import { useSettingsStore } from "$lib/stores/settings.js";
-	import { enabledServers } from "$lib/stores/mcpServers";
+	import { enabledServers, startStdioServer, callStdioTool } from "$lib/stores/mcpServers";
+	import type { StdioToolDefinition } from "$lib/utils/messageUpdates";
 	import { browser } from "$app/environment";
 	import {
 		addBackgroundGeneration,
@@ -212,6 +213,22 @@
 
 			const messageUpdatesAbortController = new AbortController();
 
+			// Collect stdio tool definitions from enabled stdio servers
+			const stdioServers = $enabledServers.filter((s) => s.transport === "stdio");
+			const stdioTools: StdioToolDefinition[] = [];
+			for (const server of stdioServers) {
+				if (server.tools) {
+					for (const tool of server.tools) {
+						stdioTools.push({
+							serverId: server.id,
+							name: tool.name,
+							description: tool.description,
+							inputSchema: tool.inputSchema as Record<string, unknown> | undefined,
+						});
+					}
+				}
+			}
+
 			const messageUpdatesIterator = await fetchMessageUpdates(
 				page.params.id,
 				{
@@ -220,12 +237,17 @@
 					messageId,
 					isRetry,
 					files: isRetry ? userMessage?.files : base64Files,
-					selectedMcpServerNames: $enabledServers.map((s) => s.name),
-					selectedMcpServers: $enabledServers.map((s) => ({
-						name: s.name,
-						url: s.url,
-						headers: s.headers,
-					})),
+					selectedMcpServerNames: $enabledServers
+						.filter((s) => s.transport === "http")
+						.map((s) => s.name),
+					selectedMcpServers: $enabledServers
+						.filter((s) => s.transport === "http" && s.url)
+						.map((s) => ({
+							name: s.name,
+							url: s.url,
+							headers: s.headers,
+						})),
+					stdioTools: stdioTools.length > 0 ? stdioTools : undefined,
 				},
 				messageUpdatesAbortController.signal
 			).catch((err) => {
@@ -370,6 +392,34 @@
 						route: update.route,
 						model: update.model,
 					};
+				} else if (update.type === MessageUpdateType.StdioToolRequest) {
+					const { requestId, serverId, tool, args } = update;
+					(async () => {
+						try {
+							const result = await callStdioTool(serverId, tool, args);
+							await fetch(`${base}/api/mcp/stdio-result`, {
+								method: "POST",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({
+									requestId,
+									success: result.success,
+									output: result.text,
+									error: result.error,
+								}),
+							});
+						} catch (err) {
+							const errorMessage = err instanceof Error ? err.message : String(err);
+							await fetch(`${base}/api/mcp/stdio-result`, {
+								method: "POST",
+								headers: { "Content-Type": "application/json" },
+								body: JSON.stringify({
+									requestId,
+									success: false,
+									error: errorMessage,
+								}),
+							});
+						}
+					})();
 				}
 			}
 		} catch (err) {

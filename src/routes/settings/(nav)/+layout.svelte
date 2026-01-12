@@ -129,92 +129,93 @@
 	</div>
 	{#if !(showContent && browser && !isDesktop(window))}
 		<div
-			class="scrollbar-custom col-span-1 flex flex-col overflow-y-auto whitespace-nowrap rounded-r-xl bg-gradient-to-l from-gray-50 to-10% dark:from-gray-700/40 max-md:-mx-4 max-md:h-full md:pr-6"
+			class="col-span-1 flex flex-col overflow-hidden whitespace-nowrap rounded-r-xl bg-gradient-to-l from-gray-50 to-10% dark:from-gray-700/40 max-md:-mx-4 max-md:h-full md:pr-6"
 			class:max-md:hidden={showContent && browser}
-			bind:this={navContainer}
 		>
-			<!-- Section Headers -->
-			<h3
-				class="px-3 pb-1 pt-2 text-xs font-semibold tracking-wide text-gray-600 dark:text-gray-400 md:text-left"
-			>
-				Models
-			</h3>
+			<div class="flex-shrink-0">
+				<h3
+					class="px-3 pb-1 pt-2 text-xs font-semibold tracking-wide text-gray-600 dark:text-gray-400 md:text-left"
+				>
+					Models
+				</h3>
 
-			<!-- Filter input -->
-			<div class="px-2 py-2">
-				<input
-					bind:value={modelFilter}
-					type="search"
-					placeholder="Search by name"
-					aria-label="Search models by name or id"
-					class="w-full rounded-full border border-gray-300 bg-white px-4 py-1 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:ring-gray-700"
-				/>
+				<div class="px-2 py-2">
+					<input
+						bind:value={modelFilter}
+						type="search"
+						placeholder="Search by name"
+						aria-label="Search models by name or id"
+						class="w-full rounded-full border border-gray-300 bg-white px-4 py-1 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:ring-gray-700"
+					/>
+				</div>
 			</div>
 
-			{#each data.models
-				.filter((el) => !el.unlisted)
-				.filter((el) => {
-					const haystack = normalize(`${el.id} ${el.name ?? ""} ${el.displayName ?? ""}`);
-					return queryTokens.every((q) => haystack.includes(q));
-				}) as model}
-				<button
-					type="button"
-					onclick={() => goto(`${base}/settings/${model.id}`)}
-					class="group flex h-9 w-full flex-none items-center gap-1 rounded-lg px-3 text-[13px] text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800/60 md:rounded-xl md:px-3 {model.id ===
-					page.params.model
-						? '!bg-gray-100 !text-gray-800 dark:!bg-gray-700 dark:!text-gray-200'
-						: ''}"
-					data-model-id={model.id}
-					aria-label="Configure {model.displayName}"
-				>
-					<div class="mr-auto flex items-center gap-1 truncate">
-						<span class="truncate">{model.displayName}</span>
-						{#if model.isRouter}
-							<IconOmni />
-						{/if}
-					</div>
-
-					{#if $settings.toolsOverrides?.[model.id] ?? (model as { supportsTools?: boolean }).supportsTools}
-						<span
-							title="Tool calling supported"
-							class="grid size-[21px] flex-none place-items-center rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-500"
-							aria-label="Model supports tools"
-							role="img"
-						>
-							<LucideHammer class="size-3" />
-						</span>
-					{/if}
-
-					{#if $settings.multimodalOverrides?.[model.id] ?? model.multimodal}
-						<span
-							title="Multimodal support (image inputs)"
-							class="grid size-[21px] flex-none place-items-center rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-500"
-							aria-label="Model is multimodal"
-							role="img"
-						>
-							<LucideImage class="size-3" />
-						</span>
-					{/if}
-
-					{#if $settings.customPrompts?.[model.id]}
-						<CarbonTextLongParagraph
-							class="size-6 rounded-md border border-gray-300 p-1 text-gray-800 dark:border-gray-600 dark:text-gray-200"
-						/>
-					{/if}
-					{#if model.id === $settings.activeModel}
-						<div
-							class="flex h-[21px] items-center rounded-md bg-black/90 px-2 text-[11px] font-semibold leading-none text-white dark:bg-white dark:text-black"
-						>
-							Active
+			<div class="scrollbar-custom flex-1 overflow-y-auto pb-16" bind:this={navContainer}>
+				{#each data.models
+					.filter((el) => !el.unlisted)
+					.filter((el) => {
+						const haystack = normalize(`${el.id} ${el.name ?? ""} ${el.displayName ?? ""}`);
+						return queryTokens.every((q) => haystack.includes(q));
+					}) as model}
+					<button
+						type="button"
+						onclick={() => goto(`${base}/settings/${model.id}`)}
+						class="group flex h-9 w-full flex-none items-center gap-1 rounded-lg px-3 text-[13px] text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800/60 md:rounded-xl md:px-3 {model.id ===
+						page.params.model
+							? '!bg-gray-100 !text-gray-800 dark:!bg-gray-700 dark:!text-gray-200'
+							: ''}"
+						data-model-id={model.id}
+						aria-label="Configure {model.displayName}"
+					>
+						<div class="mr-auto flex items-center gap-1 truncate">
+							<span class="truncate">{model.displayName}</span>
+							{#if model.isRouter}
+								<IconOmni />
+							{/if}
 						</div>
-					{/if}
-				</button>
-			{/each}
+
+						{#if $settings.toolsOverrides?.[model.id] ?? (model as { supportsTools?: boolean }).supportsTools}
+							<span
+								title="Tool calling supported"
+								class="grid size-[21px] flex-none place-items-center rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-500"
+								aria-label="Model supports tools"
+								role="img"
+							>
+								<LucideHammer class="size-3" />
+							</span>
+						{/if}
+
+						{#if $settings.multimodalOverrides?.[model.id] ?? model.multimodal}
+							<span
+								title="Multimodal support (image inputs)"
+								class="grid size-[21px] flex-none place-items-center rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-500"
+								aria-label="Model is multimodal"
+								role="img"
+							>
+								<LucideImage class="size-3" />
+							</span>
+						{/if}
+
+						{#if $settings.customPrompts?.[model.id]}
+							<CarbonTextLongParagraph
+								class="size-6 rounded-md border border-gray-300 p-1 text-gray-800 dark:border-gray-600 dark:text-gray-200"
+							/>
+						{/if}
+						{#if model.id === $settings.activeModel}
+							<div
+								class="flex h-[21px] items-center rounded-md bg-black/90 px-2 text-[11px] font-semibold leading-none text-white dark:bg-white dark:text-black"
+							>
+								Active
+							</div>
+						{/if}
+					</button>
+				{/each}
+			</div>
 
 			<button
 				type="button"
 				onclick={() => goto(`${base}/settings/application`)}
-				class="group sticky bottom-0 mt-1 flex h-9 w-full flex-none items-center gap-1 rounded-lg px-3 text-[13px] text-gray-600 dark:text-gray-300 max-md:order-first md:rounded-xl md:px-3 {page
+				class="group mt-1 flex h-9 w-full flex-shrink-0 items-center gap-1 rounded-lg px-3 text-[13px] text-gray-600 dark:text-gray-300 max-md:order-first md:rounded-xl md:px-3 {page
 					.url.pathname === `${base}/settings/application`
 					? '!bg-gray-100 !text-gray-800 dark:!bg-gray-700 dark:!text-gray-200'
 					: 'bg-white dark:bg-gray-800'}"

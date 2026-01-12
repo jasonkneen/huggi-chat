@@ -47,8 +47,8 @@
 	{/if}
 </svelte:head>
 
-<div class="scrollbar-custom h-full overflow-y-auto py-12 max-sm:pt-8 md:py-24">
-	<div class="pt-42 mx-auto flex flex-col px-5 xl:w-[60rem] 2xl:w-[64rem]">
+<div class="flex h-full flex-col overflow-hidden">
+	<div class="mx-auto w-full flex-shrink-0 px-5 pt-8 xl:w-[60rem] 2xl:w-[64rem]">
 		<div class="flex items-center">
 			<h1 class="text-xl font-bold sm:text-2xl">Models</h1>
 			{#if publicConfig.isHuggingChat}
@@ -71,7 +71,6 @@
 				>{/if}
 		</h2>
 
-		<!-- Filter input -->
 		<input
 			type="search"
 			bind:value={modelFilter}
@@ -81,8 +80,10 @@
 				placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300
 				dark:border-gray-700 dark:bg-gray-900 dark:focus:ring-gray-700"
 		/>
+	</div>
 
-		<div class="mt-6 min-h-[50vh]">
+	<div class="scrollbar-custom mt-6 flex-1 overflow-y-auto px-5 pb-16">
+		<div class="mx-auto xl:w-[60rem] 2xl:w-[64rem]">
 			<div
 				class="overflow-hidden rounded-2xl border border-gray-200/60 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900"
 			>

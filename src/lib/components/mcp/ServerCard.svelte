@@ -8,6 +8,7 @@
 	import IconTrash from "~icons/carbon/trash-can";
 	import LucideHammer from "~icons/lucide/hammer";
 	import IconSettings from "~icons/carbon/settings";
+	import IconTerminal from "~icons/carbon/terminal";
 	import Switch from "$lib/components/Switch.svelte";
 	import { getMcpServerFaviconUrl } from "$lib/utils/favicon";
 
@@ -22,7 +23,10 @@
 
 	// Show a quick-access link ONLY for the exact HF MCP login endpoint
 	import { isStrictHfMcpLogin as isStrictHfMcpLoginUrl } from "$lib/utils/hf";
-	const isHfMcp = $derived.by(() => isStrictHfMcpLoginUrl(server.url));
+	const isHfMcp = $derived.by(
+		() => server.transport === "http" && !!server.url && isStrictHfMcpLoginUrl(server.url)
+	);
+	const isStdio = $derived(server.transport === "stdio");
 
 	const statusInfo = $derived.by(() => {
 		switch (server.status) {
@@ -89,17 +93,29 @@
 		<div class="mb-3 flex items-start justify-between gap-3">
 			<div class="min-w-0 flex-1">
 				<div class="mb-0.5 flex items-center gap-2">
-					<img
-						src={getMcpServerFaviconUrl(server.url)}
-						alt=""
-						class="size-4 flex-shrink-0 rounded"
-					/>
+					{#if isStdio}
+						<IconTerminal class="size-4 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+					{:else if server.url}
+						<img
+							src={getMcpServerFaviconUrl(server.url)}
+							alt=""
+							class="size-4 flex-shrink-0 rounded"
+						/>
+					{:else}
+						<IconTerminal class="size-4 flex-shrink-0 text-gray-500 dark:text-gray-400" />
+					{/if}
 					<h3 class="truncate font-semibold text-gray-900 dark:text-gray-100">
 						{server.name}
 					</h3>
 				</div>
 				<p class="truncate text-sm text-gray-600 dark:text-gray-400">
-					{server.url}
+					{#if isStdio}
+						<code class="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs dark:bg-gray-700"
+							>{server.command}{server.args?.length ? ` ${server.args.join(" ")}` : ""}</code
+						>
+					{:else}
+						{server.url}
+					{/if}
 				</p>
 			</div>
 

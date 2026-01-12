@@ -10,6 +10,7 @@ import { callMcpTool, type McpToolTextResponse } from "$lib/server/mcp/httpClien
 import { getClient } from "$lib/server/mcp/clientPool";
 import { attachFileRefsToArgs, type FileRefResolver } from "./fileRefs";
 import type { Client } from "@modelcontextprotocol/sdk/client";
+import { createStdioToolRequest } from "$lib/server/mcp/stdioToolPending";
 
 export type Primitive = string | number | boolean;
 
@@ -25,9 +26,14 @@ export interface NormalizedToolCall {
 	arguments: string;
 }
 
+export interface ExtendedToolMapping extends McpToolMapping {
+	isStdio?: boolean;
+	serverId?: string;
+}
+
 export interface ExecuteToolCallsParams {
 	calls: NormalizedToolCall[];
-	mapping: Record<string, McpToolMapping>;
+	mapping: Record<string, ExtendedToolMapping>;
 	servers: McpServerConfig[];
 	parseArgs: (raw: unknown) => Record<string, unknown>;
 	resolveFileRef?: FileRefResolver;
@@ -194,6 +200,83 @@ export async function* executeToolCalls({
 			});
 			return;
 		}
+
+		if (mappingEntry.isStdio) {
+			const serverId = mappingEntry.serverId ?? mappingEntry.server;
+			logger.debug(
+				{ serverId, tool: mappingEntry.tool, parameters: p.paramsClean },
+				"[mcp] invoking stdio tool (client-side execution)"
+			);
+
+			const { requestId, promise } = createStdioToolRequest(
+				serverId,
+				mappingEntry.tool,
+				p.argsObj,
+				toolTimeoutMs
+			);
+
+			updatesQueue.push({
+				type: MessageUpdateType.StdioToolRequest,
+				requestId,
+				serverId,
+				tool: mappingEntry.tool,
+				args: p.argsObj,
+			});
+
+			try {
+				const result = await promise;
+				if (result.success) {
+					const output = result.output ?? "";
+					const { annotated } = processToolOutput(output);
+					logger.debug({ serverId, tool: mappingEntry.tool }, "[mcp] stdio tool call completed");
+					results.push({
+						index,
+						output: annotated,
+						uuid: p.uuid,
+						paramsClean: p.paramsClean,
+					});
+					updatesQueue.push({
+						type: MessageUpdateType.Tool,
+						subtype: MessageToolUpdateType.Result,
+						uuid: p.uuid,
+						result: {
+							status: ToolResultStatus.Success,
+							call: { name: p.call.name, parameters: p.paramsClean },
+							outputs: [{ text: annotated } as unknown as Record<string, unknown>],
+							display: true,
+						},
+					});
+				} else {
+					const errorMsg = result.error ?? "Stdio tool execution failed";
+					logger.warn(
+						{ serverId, tool: mappingEntry.tool, err: errorMsg },
+						"[mcp] stdio tool call failed"
+					);
+					results.push({ index, error: errorMsg, uuid: p.uuid, paramsClean: p.paramsClean });
+					updatesQueue.push({
+						type: MessageUpdateType.Tool,
+						subtype: MessageToolUpdateType.Error,
+						uuid: p.uuid,
+						message: errorMsg,
+					});
+				}
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				logger.warn(
+					{ serverId, tool: mappingEntry.tool, err: message },
+					"[mcp] stdio tool call error"
+				);
+				results.push({ index, error: message, uuid: p.uuid, paramsClean: p.paramsClean });
+				updatesQueue.push({
+					type: MessageUpdateType.Tool,
+					subtype: MessageToolUpdateType.Error,
+					uuid: p.uuid,
+					message,
+				});
+			}
+			return;
+		}
+
 		const serverCfg = serverLookup.get(mappingEntry.server);
 		if (!serverCfg) {
 			const message = `Unknown MCP server: ${mappingEntry.server}`;

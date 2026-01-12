@@ -9,7 +9,8 @@ export type MessageUpdate =
 	| MessageFileUpdate
 	| MessageFinalAnswerUpdate
 	| MessageReasoningUpdate
-	| MessageRouterMetadataUpdate;
+	| MessageRouterMetadataUpdate
+	| MessageStdioToolRequestUpdate;
 
 export enum MessageUpdateType {
 	Status = "status",
@@ -20,6 +21,7 @@ export enum MessageUpdateType {
 	FinalAnswer = "finalAnswer",
 	Reasoning = "reasoning",
 	RouterMetadata = "routerMetadata",
+	StdioToolRequest = "stdioToolRequest",
 }
 
 // Status
@@ -128,4 +130,12 @@ export interface MessageRouterMetadataUpdate {
 	route: string;
 	model: string;
 	provider?: InferenceProvider;
+}
+
+export interface MessageStdioToolRequestUpdate {
+	type: MessageUpdateType.StdioToolRequest;
+	requestId: string;
+	serverId: string;
+	tool: string;
+	args: Record<string, unknown>;
 }

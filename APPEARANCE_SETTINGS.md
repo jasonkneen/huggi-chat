@@ -5,6 +5,7 @@ Complete guide to customizing ChatUI's transparency, blur, and glass effects in 
 ## Features
 
 🎨 **Visual Customization**
+
 - Vibrancy effect modes (19 options on macOS)
 - Window opacity (10% - 100%)
 - Blur intensity (0px - 100px)
@@ -20,13 +21,14 @@ Import and use the settings component anywhere in your app:
 
 ```svelte
 <script>
-  import ElectronAppearanceSettings from '$lib/components/ElectronAppearanceSettings.svelte'
+	import ElectronAppearanceSettings from "$lib/components/ElectronAppearanceSettings.svelte";
 </script>
 
 <ElectronAppearanceSettings />
 ```
 
 **Recommended placement:**
+
 - Settings page/modal
 - Sidebar drawer
 - Preferences panel
@@ -34,6 +36,7 @@ Import and use the settings component anywhere in your app:
 ### Component Only Shows in Electron
 
 The component automatically:
+
 - Detects if running in Electron
 - Only renders when inside the Electron wrapper
 - Hides vibrancy options on non-macOS platforms
@@ -45,6 +48,7 @@ The component automatically:
 Controls the native macOS window blurring effect behind the app content.
 
 **Available modes:**
+
 - `appearance-based` - Adapts to system light/dark mode
 - `light` - Light vibrancy
 - `dark` - Dark vibrancy
@@ -86,6 +90,7 @@ Controls the backdrop blur strength applied to the window background.
 - **Use case:** Higher blur creates stronger glass effect, lower blur shows more detail behind
 
 **Recommendations:**
+
 - **Subtle glass:** 20-30px
 - **Standard glass:** 40-50px (default)
 - **Strong glass:** 60-80px
@@ -100,6 +105,7 @@ Controls color vibrancy in the blurred background.
 - **Use case:** Higher saturation creates more vivid, colorful glass
 
 **Recommendations:**
+
 - **Muted:** 100-130%
 - **Natural:** 140-170%
 - **Vibrant:** 180-220% (default)
@@ -110,6 +116,7 @@ Controls color vibrancy in the blurred background.
 Try these preset combinations for different effects:
 
 ### Minimal Glass
+
 ```
 Vibrancy: window
 Opacity: 95%
@@ -118,6 +125,7 @@ Saturation: 120%
 ```
 
 ### Classic Frosted Glass
+
 ```
 Vibrancy: fullscreen-ui
 Opacity: 100%
@@ -126,6 +134,7 @@ Saturation: 180%
 ```
 
 ### Ultra Transparent
+
 ```
 Vibrancy: ultra-dark
 Opacity: 75%
@@ -134,6 +143,7 @@ Saturation: 200%
 ```
 
 ### Liquid Glass (iOS 26 Style)
+
 ```
 Vibrancy: fullscreen-ui
 Opacity: 90%
@@ -142,6 +152,7 @@ Saturation: 220%
 ```
 
 ### Subtle Professional
+
 ```
 Vibrancy: sidebar
 Opacity: 98%
@@ -152,17 +163,19 @@ Saturation: 140%
 ## Settings Storage
 
 Settings are automatically saved to:
+
 ```
 ~/Library/Application Support/chat-ui/appearance-settings.json
 ```
 
 Format:
+
 ```json
 {
-  "vibrancy": "fullscreen-ui",
-  "opacity": 1.0,
-  "blur": 40,
-  "saturation": 180
+	"vibrancy": "fullscreen-ui",
+	"opacity": 1.0,
+	"blur": 40,
+	"saturation": 180
 }
 ```
 
@@ -197,50 +210,55 @@ electronAPI.getAppearanceSettings(): Promise<{
 
 ```svelte
 <script>
-  import { onMount } from 'svelte'
+	import { onMount } from "svelte";
 
-  let currentSettings
+	let currentSettings;
 
-  onMount(async () => {
-    if (window.electronAPI) {
-      // Load current settings
-      currentSettings = await window.electronAPI.getAppearanceSettings()
+	onMount(async () => {
+		if (window.electronAPI) {
+			// Load current settings
+			currentSettings = await window.electronAPI.getAppearanceSettings();
 
-      // Set specific values
-      await window.electronAPI.setBlur({ blur: 60, saturation: 200 })
-      await window.electronAPI.setOpacity(0.85)
-      await window.electronAPI.setVibrancy('fullscreen-ui')
-    }
-  })
+			// Set specific values
+			await window.electronAPI.setBlur({ blur: 60, saturation: 200 });
+			await window.electronAPI.setOpacity(0.85);
+			await window.electronAPI.setVibrancy("fullscreen-ui");
+		}
+	});
 </script>
 ```
 
 ## Platform Support
 
-| Feature | macOS | Windows | Linux |
-|---------|-------|---------|-------|
-| Vibrancy | ✅ Full | ❌ N/A | ❌ N/A |
-| Opacity | ✅ Full | ✅ Full | ✅ Full |
-| Blur | ✅ Native + CSS | ✅ CSS only | ✅ CSS only |
-| Saturation | ✅ Yes | ✅ Yes | ✅ Yes |
+| Feature    | macOS           | Windows     | Linux       |
+| ---------- | --------------- | ----------- | ----------- |
+| Vibrancy   | ✅ Full         | ❌ N/A      | ❌ N/A      |
+| Opacity    | ✅ Full         | ✅ Full     | ✅ Full     |
+| Blur       | ✅ Native + CSS | ✅ CSS only | ✅ CSS only |
+| Saturation | ✅ Yes          | ✅ Yes      | ✅ Yes      |
 
 **Note:** On Windows/Linux, blur is achieved via CSS `backdrop-filter` which may have limited compositor support.
 
 ## Troubleshooting
 
 ### Settings not saving
+
 **Solution:** Check file permissions for `~/Library/Application Support/chat-ui/`
 
 ### Vibrancy not working
+
 **Solution:** Ensure you're on macOS and the window has `transparent: true`
 
 ### Blur looks pixelated
+
 **Solution:** Reduce blur intensity or increase saturation for smoother appearance
 
 ### Performance issues
+
 **Solution:** High blur (80-100px) can be GPU-intensive. Reduce to 40-60px range.
 
 ### Settings reset on restart
+
 **Solution:** Check console for file write errors. Ensure app has disk access permissions.
 
 ## Best Practices

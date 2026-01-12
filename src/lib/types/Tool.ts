@@ -47,6 +47,8 @@ export interface KeyValuePair {
 
 export type ServerStatus = "connected" | "connecting" | "disconnected" | "error";
 
+export type MCPTransport = "http" | "stdio";
+
 export interface MCPTool {
 	name: string;
 	description?: string;
@@ -56,19 +58,28 @@ export interface MCPTool {
 export interface MCPServer {
 	id: string;
 	name: string;
-	url: string;
 	type: "base" | "custom";
+	transport: MCPTransport;
+	// HTTP transport
+	url?: string;
 	headers?: KeyValuePair[];
+	// Stdio transport (Electron only)
+	command?: string;
+	args?: string[];
 	env?: KeyValuePair[];
+	// Common
 	status?: ServerStatus;
 	isLocked?: boolean;
 	tools?: MCPTool[];
 	errorMessage?: string;
-	// Indicates server reports or appears to require OAuth or other auth
 	authRequired?: boolean;
 }
 
 export interface MCPServerApi {
-	url: string;
+	transport: MCPTransport;
+	url?: string;
 	headers?: KeyValuePair[];
+	command?: string;
+	args?: string[];
+	env?: KeyValuePair[];
 }

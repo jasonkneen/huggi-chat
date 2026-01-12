@@ -317,6 +317,41 @@ export async function healthCheckServer(
 	try {
 		updateServerStatus(server.id, "connecting");
 
+		// Stdio transport requires Electron IPC
+		if (server.transport === "stdio") {
+			const electronAPI = browser
+				? (
+						window as unknown as {
+							electronAPI?: {
+								mcpHealthCheck?: (
+									config: unknown
+								) => Promise<{ ready: boolean; tools?: MCPTool[]; error?: string }>;
+							};
+						}
+					).electronAPI
+				: undefined;
+			if (electronAPI?.mcpHealthCheck) {
+				const result = await electronAPI.mcpHealthCheck({
+					command: server.command,
+					args: server.args,
+					env: server.env,
+				});
+
+				if (result.ready && result.tools) {
+					updateServerStatus(server.id, "connected", undefined, result.tools, false);
+					return { ready: true, tools: result.tools };
+				} else {
+					updateServerStatus(server.id, "error", result.error, undefined, false);
+					return { ready: false, error: result.error };
+				}
+			} else {
+				const errorMessage = "Stdio transport requires Electron";
+				updateServerStatus(server.id, "error", errorMessage);
+				return { ready: false, error: errorMessage };
+			}
+		}
+
+		// HTTP transport uses the API endpoint
 		const response = await fetch(`${base}/api/mcp/health`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -337,6 +372,126 @@ export async function healthCheckServer(
 		updateServerStatus(server.id, "error", errorMessage);
 		return { ready: false, error: errorMessage };
 	}
+}
+
+// Electron API type for stdio MCP operations
+type ElectronMcpAPI = {
+	mcpHealthCheck?: (
+		config: unknown
+	) => Promise<{ ready: boolean; tools?: MCPTool[]; error?: string }>;
+	mcpStartServer?: (config: {
+		serverId: string;
+		command: string;
+		args?: string[];
+		env?: { key: string; value: string }[];
+	}) => Promise<{ success: boolean; error?: string }>;
+	mcpCallTool?: (config: {
+		serverId: string;
+		tool: string;
+		args?: unknown;
+	}) => Promise<{ success: boolean; text?: string; content?: unknown[]; error?: string }>;
+	mcpStopServer?: (config: { serverId: string }) => Promise<{ success: boolean; error?: string }>;
+	mcpListTools?: (config: {
+		serverId: string;
+	}) => Promise<{ success: boolean; tools?: MCPTool[]; error?: string }>;
+};
+
+function getElectronAPI(): ElectronMcpAPI | undefined {
+	if (!browser) return undefined;
+	return (window as unknown as { electronAPI?: ElectronMcpAPI }).electronAPI;
+}
+
+/**
+ * Start a stdio MCP server (keeps it running for tool calls)
+ */
+export async function startStdioServer(
+	server: MCPServer
+): Promise<{ success: boolean; tools?: MCPTool[]; error?: string }> {
+	if (server.transport !== "stdio") {
+		return { success: false, error: "Not a stdio server" };
+	}
+
+	if (!server.command) {
+		return { success: false, error: "Stdio server requires a command" };
+	}
+
+	const electronAPI = getElectronAPI();
+	if (!electronAPI?.mcpStartServer) {
+		return { success: false, error: "Stdio transport requires Electron" };
+	}
+
+	updateServerStatus(server.id, "connecting");
+
+	const result = await electronAPI.mcpStartServer({
+		serverId: server.id,
+		command: server.command,
+		args: server.args,
+		env: server.env,
+	});
+
+	if (!result.success) {
+		updateServerStatus(server.id, "error", result.error);
+		return { success: false, error: result.error };
+	}
+
+	// Get tools list
+	if (electronAPI.mcpListTools) {
+		const toolsResult = await electronAPI.mcpListTools({ serverId: server.id });
+		if (toolsResult.success && toolsResult.tools) {
+			updateServerStatus(server.id, "connected", undefined, toolsResult.tools, false);
+			return { success: true, tools: toolsResult.tools };
+		}
+	}
+
+	updateServerStatus(server.id, "connected");
+	return { success: true };
+}
+
+/**
+ * Stop a stdio MCP server
+ */
+export async function stopStdioServer(
+	server: MCPServer
+): Promise<{ success: boolean; error?: string }> {
+	if (server.transport !== "stdio") {
+		return { success: false, error: "Not a stdio server" };
+	}
+
+	const electronAPI = getElectronAPI();
+	if (!electronAPI?.mcpStopServer) {
+		return { success: false, error: "Stdio transport requires Electron" };
+	}
+
+	const result = await electronAPI.mcpStopServer({ serverId: server.id });
+	if (result.success) {
+		updateServerStatus(server.id, "disconnected");
+	}
+	return result;
+}
+
+/**
+ * Call a tool on a stdio MCP server
+ */
+export async function callStdioTool(
+	serverId: string,
+	tool: string,
+	args: unknown = {}
+): Promise<{ success: boolean; text?: string; content?: unknown[]; error?: string }> {
+	const electronAPI = getElectronAPI();
+	if (!electronAPI?.mcpCallTool) {
+		return { success: false, error: "Stdio transport requires Electron" };
+	}
+
+	return electronAPI.mcpCallTool({ serverId, tool, args });
+}
+
+/**
+ * Get tools from all enabled stdio servers
+ */
+export function getEnabledStdioServers(): MCPServer[] {
+	const servers = get(allMcpServers);
+	const selected = get(selectedServerIds);
+	return servers.filter((s) => s.transport === "stdio" && selected.has(s.id));
 }
 
 // Initialize on module load

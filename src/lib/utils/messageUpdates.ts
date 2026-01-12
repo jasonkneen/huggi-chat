@@ -14,6 +14,13 @@ import {
 import { page } from "$app/state";
 import type { KeyValuePair } from "$lib/types/Tool";
 
+export type StdioToolDefinition = {
+	serverId: string;
+	name: string;
+	description?: string;
+	inputSchema?: Record<string, unknown>;
+};
+
 type MessageUpdateRequestOptions = {
 	base: string;
 	inputs?: string;
@@ -24,7 +31,10 @@ type MessageUpdateRequestOptions = {
 	// Optional: pass selected MCP server names (client-side selection)
 	selectedMcpServerNames?: string[];
 	// Optional: pass selected MCP server configs (for custom client-defined servers)
-	selectedMcpServers?: Array<{ name: string; url: string; headers?: KeyValuePair[] }>;
+	// Only HTTP transport servers with a url can be sent to the remote API
+	selectedMcpServers?: Array<{ name: string; url?: string; headers?: KeyValuePair[] }>;
+	// Stdio tools (client-side execution, tool defs passed for LLM to call)
+	stdioTools?: StdioToolDefinition[];
 };
 export async function fetchMessageUpdates(
 	conversationId: string,
@@ -41,9 +51,9 @@ export async function fetchMessageUpdates(
 		id: opts.messageId,
 		is_retry: opts.isRetry,
 		is_continue: Boolean(opts.isContinue),
-		// Will be ignored server-side if unsupported
 		selectedMcpServerNames: opts.selectedMcpServerNames,
 		selectedMcpServers: opts.selectedMcpServers,
+		stdioTools: opts.stdioTools,
 	});
 
 	opts.files?.forEach((file) => {

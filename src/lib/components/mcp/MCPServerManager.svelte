@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { usePublicConfig } from "$lib/utils/PublicConfig.svelte";
+	import { browser } from "$app/environment";
 	import Modal from "$lib/components/Modal.svelte";
 	import ServerCard from "./ServerCard.svelte";
 	import AddServerForm from "./AddServerForm.svelte";
@@ -11,13 +12,20 @@
 		refreshMcpServers,
 		healthCheckServer,
 	} from "$lib/stores/mcpServers";
-	import type { KeyValuePair } from "$lib/types/Tool";
+	import type { KeyValuePair, MCPTransport } from "$lib/types/Tool";
 	import IconAddLarge from "~icons/carbon/add-large";
 	import IconRefresh from "~icons/carbon/renew";
 	import LucideHammer from "~icons/lucide/hammer";
+	import IconLightbulb from "~icons/lucide/lightbulb";
 	import IconMCP from "$lib/components/icons/IconMCP.svelte";
 
 	const publicConfig = usePublicConfig();
+
+	// Check if running in Electron (stdio servers only work in Electron)
+	let isElectron = $state(false);
+	if (browser && "electronAPI" in window) {
+		isElectron = true;
+	}
 
 	interface Props {
 		onclose: () => void;
@@ -29,11 +37,23 @@
 	let currentView = $state<View>("list");
 	let isRefreshing = $state(false);
 
-	const baseServers = $derived($allMcpServers.filter((s) => s.type === "base"));
-	const customServers = $derived($allMcpServers.filter((s) => s.type === "custom"));
+	// Filter out stdio servers when not in Electron
+	const visibleServers = $derived(
+		isElectron ? $allMcpServers : $allMcpServers.filter((s) => s.transport !== "stdio")
+	);
+	const baseServers = $derived(visibleServers.filter((s) => s.type === "base"));
+	const customServers = $derived(visibleServers.filter((s) => s.type === "custom"));
 	const enabledCount = $derived($enabledServersCount);
 
-	function handleAddServer(serverData: { name: string; url: string; headers?: KeyValuePair[] }) {
+	function handleAddServer(serverData: {
+		name: string;
+		transport: MCPTransport;
+		url?: string;
+		headers?: KeyValuePair[];
+		command?: string;
+		args?: string[];
+		env?: KeyValuePair[];
+	}) {
 		addCustomServer(serverData);
 		currentView = "list";
 	}
@@ -92,8 +112,8 @@
 					</div>
 					<div>
 						<p class="text-sm font-semibold text-gray-900 dark:text-gray-100">
-							{$allMcpServers.length}
-							{$allMcpServers.length === 1 ? "server" : "servers"} configured
+							{visibleServers.length}
+							{visibleServers.length === 1 ? "server" : "servers"} configured
 						</p>
 						<p class="text-xs text-gray-600 dark:text-gray-400">
 							{enabledCount} enabled
@@ -169,7 +189,11 @@
 
 				<!-- Help Text -->
 				<div class="rounded-lg bg-gray-50 p-4 dark:bg-gray-700">
-					<h4 class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">💡 Quick Tips</h4>
+					<h4
+						class="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-900 dark:text-gray-100"
+					>
+						<IconLightbulb class="size-4" /> Quick Tips
+					</h4>
 					<ul class="space-y-1 text-xs text-gray-600 dark:text-gray-400">
 						<li>• Only connect to servers you trust</li>
 						<li>• Enable servers to make their tools available in chat</li>

@@ -359,11 +359,13 @@
 												class="flex h-9 select-none items-center gap-2 rounded-md px-2 text-sm leading-none text-gray-800 data-[highlighted]:bg-gray-100 focus-visible:outline-none dark:text-gray-100 dark:data-[highlighted]:bg-white/10"
 											>
 												{#snippet children({ checked })}
-													<img
-														src={getMcpServerFaviconUrl(server.url)}
-														alt=""
-														class="size-4 flex-shrink-0 rounded"
-													/>
+													{#if server.url}
+														<img
+															src={getMcpServerFaviconUrl(server.url)}
+															alt=""
+															class="size-4 flex-shrink-0 rounded"
+														/>
+													{/if}
 													<span class="max-w-52 truncate py-1">{server.name}</span>
 													<div class="ml-auto flex items-center">
 														<!-- Toggle visual -->
@@ -420,11 +422,13 @@
 								{#if selectedServers.length}
 									<span class="flex items-center -space-x-1">
 										{#each selectedServers.slice(0, 3) as server (server.id)}
-											<img
-												src={getMcpServerFaviconUrl(server.url)}
-												alt=""
-												class="size-4 rounded bg-white p-px shadow-sm ring-1 ring-black/5 dark:bg-gray-900 dark:ring-white/10"
-											/>
+											{#if server.url}
+												<img
+													src={getMcpServerFaviconUrl(server.url)}
+													alt=""
+													class="size-4 rounded bg-white p-px shadow-sm ring-1 ring-black/5 dark:bg-gray-900 dark:ring-white/10"
+												/>
+											{/if}
 										{/each}
 										{#if selectedServers.length > 3}
 											<span class="ml-1 text-[10px] font-semibold text-blue-800 dark:text-blue-200">
