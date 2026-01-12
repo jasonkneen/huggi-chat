@@ -557,7 +557,7 @@
 	}}
 />
 
-<div class="relative z-[-1] min-h-0 min-w-0 bg-white dark:bg-transparent">
+<div class="relative z-[-1] h-full min-w-0 bg-white dark:bg-transparent">
 	<!-- Top gradient fade -->
 	<div
 		class="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-16 w-full
@@ -574,7 +574,7 @@
 		bind:this={chatContainer}
 	>
 		<div
-			class="mx-auto flex h-full max-w-3xl flex-col gap-6 px-5 pt-12 sm:gap-8 xl:max-w-4xl xl:pt-14"
+			class="mx-auto flex min-h-full max-w-3xl flex-col gap-6 px-5 pt-12 sm:gap-8 xl:max-w-4xl xl:pt-14"
 		>
 			{#if preprompt && preprompt != currentModel.preprompt}
 				<SystemPromptModal preprompt={preprompt ?? ""} />

@@ -315,7 +315,7 @@
 	</MobileNav>
 	<nav
 		class="relative grid max-h-dvh grid-cols-1 grid-rows-[auto,1fr,auto] overflow-hidden pt-6 max-md:hidden {isResizing ? '' : 'transition-all duration-300'}"
-		style="width: {isNavCollapsed ? '0px' : `${navWidth}px`};"
+		style="width: {isNavCollapsed ? '0px' : `${navWidth}px`}; grid-column: 1; grid-row: 1 / -1;"
 	>
 		<div class="contents {isResizing ? '' : 'transition-opacity duration-150'}" style="opacity: {isNavCollapsed ? 0 : 1};">
 			<NavMenu
@@ -347,7 +347,9 @@
 	{#if currentError}
 		<Toast message={currentError} />
 	{/if}
-	{@render children?.()}
+	<div class="h-full overflow-hidden" style="grid-column: 2; grid-row: 1 / -1;">
+		{@render children?.()}
+	</div>
 
 	{#if publicConfig.PUBLIC_PLAUSIBLE_SCRIPT_URL}
 		<script>
