@@ -63,7 +63,12 @@ export async function* runMcpFlow({
 	undefined
 > {
 	const endpointType = model.endpoints?.[0]?.type;
+	logger.info(
+		{ modelId: model.id, endpointType, hasEndpoints: !!model.endpoints },
+		"[mcp] checking endpoint type"
+	);
 	if (endpointType === "claude-agent-sdk") {
+		logger.info({ modelId: model.id }, "[mcp] skipping MCP flow for claude-agent-sdk");
 		return false;
 	}
 
@@ -439,6 +444,9 @@ export async function* runMcpFlow({
 		return false;
 	}
 
+	// Track content for abort handling - needs to be outside try for catch access
+	let lastAssistantContentForAbort = "";
+
 	try {
 		const { OpenAI } = await import("openai");
 
@@ -771,6 +779,7 @@ export async function* runMcpFlow({
 
 				if (combined.length > 0) {
 					lastAssistantContent += combined;
+					lastAssistantContentForAbort = lastAssistantContent; // Sync for abort handling
 					if (!sawToolCall) {
 						streamedContent = true;
 						yield { type: MessageUpdateType.Stream, token: combined };
@@ -947,9 +956,14 @@ export async function* runMcpFlow({
 			msg.includes("APIUserAbortError") ||
 			msg.includes("Request was aborted");
 		if (isAbort) {
-			// Expected on user stop; keep logs quiet and do not treat as error
+			// Expected on user stop; yield final answer to prevent restart
 			logger.debug({}, "[mcp] aborted by user");
-			return false;
+			yield {
+				type: MessageUpdateType.FinalAnswer,
+				text: lastAssistantContentForAbort || "",
+				interrupted: true,
+			};
+			return true; // Return true to indicate we handled the abort
 		}
 		logger.warn({ err: msg }, "[mcp] flow failed, falling back to default endpoint");
 	} finally {

@@ -41,7 +41,7 @@ body {
 @layer utilities {
 	/* your existing utilities */
 	.scrollbar-custom {
-		@apply scrollbar-thin scrollbar-track-transparent scrollbar-thumb-black/10 scrollbar-thumb-rounded-full scrollbar-w-1 hover:scrollbar-thumb-black/20 dark:scrollbar-thumb-white/10 dark:hover:scrollbar-thumb-white/20;
+		@apply scrollbar-thin scrollbar-track-transparent scrollbar-thumb-black/30 scrollbar-thumb-rounded-full scrollbar-w-1.5 hover:scrollbar-thumb-black/50 dark:scrollbar-thumb-white/30 dark:hover:scrollbar-thumb-white/50;
 	}
 
 	.scrollbar-custom::-webkit-scrollbar {
@@ -91,7 +91,7 @@ body {
 	}
 
 	.prose pre {
-		@apply border-[0.5px] bg-white text-gray-600 dark:border-gray-700 dark:!bg-gray-900 dark:bg-inherit dark:text-inherit;
+		@apply border-[0.5px] bg-white text-gray-600 dark:border-gray-600 dark:!bg-black/60 dark:bg-inherit dark:text-inherit backdrop-blur-sm;
 	}
 
 	/* Override prose-sm title sizes - 75% of original */

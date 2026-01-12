@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
 	// Appearance settings
 	setVibrancy: (type) => ipcRenderer.invoke("set-vibrancy", type),
+	setBackgroundMaterial: (material) => ipcRenderer.invoke("set-background-material", material),
 	setOpacity: (opacity) => ipcRenderer.invoke("set-opacity", opacity),
 	setBlur: (blur) => ipcRenderer.invoke("set-blur", blur),
 	getAppearanceSettings: () => ipcRenderer.invoke("get-appearance-settings"),

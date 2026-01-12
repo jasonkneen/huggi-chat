@@ -32,6 +32,8 @@ export async function* generateClaudeAgentSdk(
 		| undefined;
 	const budgetTokens = thinkingLevel !== undefined ? thinkingTokensMap[thinkingLevel] : undefined;
 
+	logger.info({ modelId, thinkingLevel, budgetTokens }, "[claude-agent-sdk] Starting generation");
+
 	try {
 		const response = query({
 			prompt,

@@ -14,14 +14,20 @@
 	import UploadedFile from "./UploadedFile.svelte";
 
 	import MarkdownRenderer from "./MarkdownRenderer.svelte";
+	import MessageContent from "./MessageContent.svelte";
 	import OpenReasoningResults from "./OpenReasoningResults.svelte";
 	import Alternatives from "./Alternatives.svelte";
 	import MessageAvatar from "./MessageAvatar.svelte";
 	import { PROVIDERS_HUB_ORGS } from "@huggingface/inference";
 	import { requireAuthUser } from "$lib/utils/auth";
 	import ToolUpdate from "./ToolUpdate.svelte";
+	import AskUserQuestionForm from "./AskUserQuestionForm.svelte";
 	import { isMessageToolUpdate } from "$lib/utils/messageUpdates";
-	import { MessageUpdateType, type MessageToolUpdate } from "$lib/types/MessageUpdate";
+	import {
+		MessageUpdateType,
+		type MessageToolUpdate,
+		type MessageAskUserQuestionUpdate,
+	} from "$lib/types/MessageUpdate";
 
 	interface Props {
 		message: Message;
@@ -129,7 +135,8 @@
 
 	type Block =
 		| { type: "text"; content: string }
-		| { type: "tool"; uuid: string; updates: MessageToolUpdate[] };
+		| { type: "tool"; uuid: string; updates: MessageToolUpdate[] }
+		| { type: "question"; requestId: string; update: MessageAskUserQuestionUpdate };
 
 	type ToolBlock = Extract<Block, { type: "tool" }>;
 
@@ -168,6 +175,8 @@
 				} else {
 					res.push({ type: "tool" as const, uuid: update.uuid, updates: [update] });
 				}
+			} else if (update.type === MessageUpdateType.AskUserQuestion) {
+				res.push({ type: "question" as const, requestId: update.requestId, update });
 			} else if (update.type === MessageUpdateType.FinalAnswer) {
 				sawFinalAnswer = true;
 				const finalText = update.text ?? "";
@@ -256,7 +265,7 @@
 			animating={isLast && loading}
 		/>
 		<div
-			class="relative flex min-w-[60px] flex-col gap-2 break-words rounded-2xl border border-gray-100 bg-gradient-to-br from-gray-50 px-5 py-3.5 text-gray-600 prose-pre:my-2 dark:border-gray-800 dark:from-gray-800/80 dark:text-gray-300"
+			class="relative flex min-w-[60px] flex-col gap-2 break-words rounded-2xl border border-[0.5px] border-gray-100 bg-gradient-to-br from-gray-50 px-5 py-3.5 text-gray-600 prose-pre:my-2 dark:border-gray-600 dark:from-gray-800/80 dark:text-gray-300"
 		>
 			{#if message.files?.length}
 				<div class="flex h-fit flex-wrap gap-x-5 gap-y-2">
@@ -270,7 +279,7 @@
 				{#if isLast && loading && blocks.length === 0}
 					<IconLoading classNames="loading inline ml-2 first:ml-0" />
 				{/if}
-				{#each blocks as block, blockIndex (block.type === "tool" ? `${block.uuid}-${blockIndex}` : `text-${blockIndex}`)}
+				{#each blocks as block, blockIndex (block.type === "tool" ? `${block.uuid}-${blockIndex}` : block.type === "question" ? `${block.requestId}-${blockIndex}` : `text-${blockIndex}`)}
 					{@const nextBlock = blocks[blockIndex + 1]}
 					{@const nextBlockHasThink =
 						nextBlock?.type === "text" && THINK_BLOCK_TEST_REGEX.test(nextBlock.content)}
@@ -278,6 +287,16 @@
 					{#if block.type === "tool"}
 						<div data-exclude-from-copy class="has-[+.prose]:mb-3 [.prose+&]:mt-4">
 							<ToolUpdate tool={block.updates} {loading} hasNext={nextIsLinkable} />
+						</div>
+					{:else if block.type === "question"}
+						<div data-exclude-from-copy class="has-[+.prose]:mb-3 [.prose+&]:mt-4">
+							<AskUserQuestionForm
+								questions={block.update.questions}
+								onsubmit={(answers) => {
+									// TODO: Handle submission back to the model
+									console.log("Question answers:", answers);
+								}}
+							/>
 						</div>
 					{:else if block.type === "text"}
 						{#if isLast && loading && block.content.length === 0}
@@ -303,7 +322,7 @@
 									<div
 										class="prose max-w-none dark:prose-invert max-sm:prose-sm prose-headings:font-semibold prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-pre:bg-gray-800 prose-img:my-0 prose-img:rounded-lg dark:prose-pre:bg-gray-900"
 									>
-										<MarkdownRenderer content={part} loading={isLast && loading} />
+										<MessageContent content={part} loading={isLast && loading} />
 									</div>
 								{/if}
 							{/each}
@@ -311,7 +330,7 @@
 							<div
 								class="prose max-w-none dark:prose-invert max-sm:prose-sm prose-headings:font-semibold prose-h1:text-lg prose-h2:text-base prose-h3:text-base prose-pre:bg-gray-800 prose-img:my-0 prose-img:rounded-lg dark:prose-pre:bg-gray-900"
 							>
-								<MarkdownRenderer content={block.content} loading={isLast && loading} />
+								<MessageContent content={block.content} loading={isLast && loading} />
 							</div>
 						{/if}
 					{/if}
@@ -498,10 +517,10 @@
 				{/if}
 				{#if messageTokens > 0}
 					<span
-						class="flex items-center gap-0.5 text-[10px] tabular-nums text-gray-400 dark:text-gray-500"
+						class="ml-1 flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-200"
 						title="Input tokens (estimated)"
 					>
-						<CarbonArrowUp class="size-2.5" />
+						<CarbonArrowUp class="size-3 text-blue-500 dark:text-blue-400" />
 						{messageTokens.toLocaleString()}
 					</span>
 				{/if}

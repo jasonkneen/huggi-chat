@@ -51,7 +51,15 @@ async function* textGenerationWithoutTitle(
 	const processedMessages = await preprocessMessages(messages, convId);
 
 	const endpointType = ctx.model.endpoints?.[0]?.type;
+	console.log("[textGeneration] model check:", {
+		modelId: ctx.model.id,
+		hasEndpoints: !!ctx.model.endpoints,
+		endpointsLength: ctx.model.endpoints?.length,
+		firstEndpointType: endpointType,
+		allEndpoints: ctx.model.endpoints,
+	});
 	if (endpointType === "claude-agent-sdk") {
+		console.log("[textGeneration] Routing to generateClaudeAgentSdk");
 		yield* generateClaudeAgentSdk({ ...ctx, messages: processedMessages }, preprompt);
 		done.abort();
 		return;

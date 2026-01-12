@@ -1,4 +1,11 @@
 {
-	"enabledMcpjsonServers": ["codex"],
-	"enableAllProjectMcpServers": true
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "codex"
+  ],
+  "permissions": {
+    "allow": [
+      "Skill(compound-engineering:frontend-design)"
+    ]
+  }
 }

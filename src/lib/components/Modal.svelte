@@ -69,7 +69,7 @@
 			handleBackdropClick(e);
 		}}
 		transition:fade|local={{ easing: cubicOut, duration: 300 }}
-		class="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm dark:bg-black/50"
+		class="fixed inset-0 z-40 flex items-center justify-center bg-black/10 backdrop-blur-sm dark:bg-black/50"
 	>
 		{#if disableFly}
 			<div

@@ -22,6 +22,8 @@
 	import IconShare from "$lib/components/icons/IconShare.svelte";
 	import { shareModal } from "$lib/stores/shareModal";
 	import BackgroundGenerationPoller from "$lib/components/BackgroundGenerationPoller.svelte";
+	import ToolDebugger from "$lib/components/chat/ToolDebugger.svelte";
+	import { toolDebuggerOpen } from "$lib/stores/toolDebugger";
 	import { requireAuthUser } from "$lib/utils/auth";
 
 	let { data = $bindable(), children } = $props();
@@ -240,12 +242,16 @@
 	<WelcomeModal close={closeWelcomeModal} />
 {/if}
 
+{#if $toolDebuggerOpen}
+	<ToolDebugger onclose={() => toolDebuggerOpen.set(false)} />
+{/if}
+
 <BackgroundGenerationPoller />
 
 <div
-	class="fixed grid h-full w-screen grid-cols-1 grid-rows-[auto,1fr] overflow-hidden text-smd {!isNavCollapsed
+	class="fixed grid h-full w-screen grid-cols-1 grid-rows-[auto,1fr] overflow-hidden bg-white text-smd dark:bg-transparent dark:text-gray-300 md:grid-rows-[1fr] {!isNavCollapsed
 		? 'md:grid-cols-[290px,1fr]'
-		: 'md:grid-cols-[0px,1fr]'} transition-[300ms] [transition-property:grid-template-columns] dark:text-gray-300 md:grid-rows-[1fr]"
+		: 'md:grid-cols-[0px,1fr]'} transition-[300ms] [transition-property:grid-template-columns]"
 >
 	<ExpandNavigation
 		isCollapsed={isNavCollapsed}

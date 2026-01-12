@@ -36,6 +36,11 @@ export const BUILTIN_COMMANDS: SlashCommand[] = [
 		description: "Manage workspaces for this conversation",
 		source: "builtin",
 	},
+	{
+		name: "debug",
+		description: "Tool debugger - test tools with mock data",
+		source: "builtin",
+	},
 ];
 
 export function parseSlashCommand(input: string): { command: string; args: string } | null {
@@ -61,6 +66,8 @@ export function filterCommands(
 	const { isElectron = false, hasWorkspace = false } = options ?? {};
 
 	let available = allCommands.filter((cmd) => {
+		// Hide debug command from autocomplete menu
+		if (cmd.name === "debug") return false;
 		if (cmd.requiresElectron && !isElectron) return false;
 		if (cmd.requiresWorkspace && !hasWorkspace) return false;
 		return true;

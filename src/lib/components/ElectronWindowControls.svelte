@@ -34,7 +34,7 @@
 
 {#if isElectron}
 	<div
-		class="electron-titlebar drag-region fixed left-0 right-0 top-0 z-50 flex h-12 items-center justify-between px-4"
+		class="electron-titlebar drag-region fixed left-0 right-0 top-[5px] z-50 flex h-12 items-center justify-between px-4"
 	>
 		<!-- Left side - App title or logo -->
 		<div class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">

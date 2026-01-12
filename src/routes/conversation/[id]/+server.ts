@@ -109,6 +109,15 @@ export async function POST({ request, locals, params, getClientAddress }) {
 	// fetch the model
 	const model = models.find((m) => m.id === conv.model);
 
+	console.log("[conversation/+server.ts] Model lookup:", {
+		convModel: conv.model,
+		foundModel: !!model,
+		modelId: model?.id,
+		hasEndpoints: !!model?.endpoints,
+		endpointsLength: model?.endpoints?.length,
+		firstEndpointType: model?.endpoints?.[0]?.type,
+	});
+
 	if (!model) {
 		error(410, "Model not available anymore");
 	}

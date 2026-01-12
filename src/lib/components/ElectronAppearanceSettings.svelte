@@ -2,56 +2,82 @@
 	import { onMount } from "svelte";
 	import IconLightbulb from "~icons/lucide/lightbulb";
 
+	interface VibrancyOptions {
+		theme: string; // 'light', 'dark', or '#rrggbbaa'
+		effect: string; // 'acrylic' or 'blur'
+		disableOnBlur: boolean;
+	}
+
 	interface ElectronAPI {
 		platform: string;
 		getAppearanceSettings: () => Promise<{
-			vibrancy?: string;
+			vibrancy?: VibrancyOptions;
 			opacity?: number;
 			blur?: number;
 			saturation?: number;
 		} | null>;
-		setVibrancy: (type: string) => Promise<{ success: boolean }>;
+		setVibrancy: (options: VibrancyOptions) => Promise<{ success: boolean }>;
+		setBackgroundMaterial: (material: string) => Promise<{ success: boolean }>;
 		setOpacity: (opacity: number) => Promise<{ success: boolean; opacity: number }>;
 		setBlur: (opts: { blur: number; saturation: number }) => Promise<void>;
 	}
 
-	declare const window: Window & { electronAPI?: ElectronAPI };
+	// Helper to access electronAPI with proper typing
+	function getElectronAPI(): ElectronAPI | undefined {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		return (window as any).electronAPI;
+	}
 
 	let isElectron = false;
 	let isMac = false;
+	let isWindows = false;
 	let settings = {
-		vibrancy: "fullscreen-ui",
+		vibrancy: {
+			theme: "sidebar", // Default to sidebar for macOS (adapts to light/dark mode)
+			effect: "acrylic",
+			disableOnBlur: false,
+		} as VibrancyOptions,
 		opacity: 1.0,
 		blur: 40,
 		saturation: 180,
 	};
 
-	const vibrancyOptions = [
-		{ value: "appearance-based", label: "Appearance Based" },
+	// macOS vibrancy type options
+	const macThemeOptions = [
 		{ value: "light", label: "Light" },
 		{ value: "dark", label: "Dark" },
+		{ value: "sidebar", label: "Sidebar" },
+		{ value: "fullscreen-ui", label: "Fullscreen UI" },
+		{ value: "header", label: "Header" },
 		{ value: "titlebar", label: "Titlebar" },
-		{ value: "selection", label: "Selection" },
 		{ value: "menu", label: "Menu" },
 		{ value: "popover", label: "Popover" },
-		{ value: "sidebar", label: "Sidebar" },
-		{ value: "medium-light", label: "Medium Light" },
-		{ value: "ultra-dark", label: "Ultra Dark" },
-		{ value: "header", label: "Header" },
-		{ value: "sheet", label: "Sheet" },
-		{ value: "window", label: "Window" },
-		{ value: "hud", label: "HUD" },
-		{ value: "fullscreen-ui", label: "Fullscreen UI" },
-		{ value: "tooltip", label: "Tooltip" },
-		{ value: "content", label: "Content" },
 		{ value: "under-window", label: "Under Window" },
-		{ value: "under-page", label: "Under Page" },
+		{ value: "hud", label: "HUD" },
+	];
+
+	// Windows electron-acrylic-window options
+	const winThemeOptions = [
+		{ value: "light", label: "Light" },
+		{ value: "dark", label: "Dark" },
+		{ value: "#00000080", label: "Transparent Black" },
+		{ value: "#ffffff80", label: "Transparent White" },
+	];
+
+	// Reactive theme options based on platform
+	$: themeOptions = isMac ? macThemeOptions : winThemeOptions;
+
+	// Effect options (Windows only - macOS uses system vibrancy)
+	const effectOptions = [
+		{ value: "acrylic", label: "Acrylic" },
+		{ value: "blur", label: "Blur" },
 	];
 
 	onMount(async () => {
 		if (typeof window !== "undefined" && window.electronAPI) {
 			isElectron = true;
 			isMac = window.electronAPI.platform === "darwin";
+			isWindows = window.electronAPI.platform === "win32";
 
 			// Load current settings
 			const currentSettings = await window.electronAPI.getAppearanceSettings();
@@ -61,12 +87,33 @@
 		}
 	});
 
-	async function updateVibrancy(event: Event) {
+	async function updateVibrancyTheme(event: Event) {
 		const target = event.target as HTMLSelectElement;
-		const type = target.value;
-		const result = await window.electronAPI?.setVibrancy(type);
+		const theme = target.value;
+		const newVibrancy = { ...settings.vibrancy, theme };
+		const result = await window.electronAPI?.setVibrancy(newVibrancy);
 		if (result?.success) {
-			settings.vibrancy = type;
+			settings.vibrancy = newVibrancy;
+		}
+	}
+
+	async function updateVibrancyEffect(event: Event) {
+		const target = event.target as HTMLSelectElement;
+		const effect = target.value;
+		const newVibrancy = { ...settings.vibrancy, effect };
+		const result = await window.electronAPI?.setVibrancy(newVibrancy);
+		if (result?.success) {
+			settings.vibrancy = newVibrancy;
+		}
+	}
+
+	async function updateDisableOnBlur(event: Event) {
+		const target = event.target as HTMLInputElement;
+		const disableOnBlur = target.checked;
+		const newVibrancy = { ...settings.vibrancy, disableOnBlur };
+		const result = await window.electronAPI?.setVibrancy(newVibrancy);
+		if (result?.success) {
+			settings.vibrancy = newVibrancy;
 		}
 	}
 
@@ -96,110 +143,159 @@
 
 {#if isElectron}
 	<div
-		class="space-y-6 rounded-xl border border-gray-200 bg-white/50 p-6 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/50"
+		class="rounded-xl border border-[0.5px] border-gray-200 bg-white px-3 shadow-sm dark:border-gray-600 dark:bg-gray-800"
 	>
-		<div>
-			<h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-				Electron Appearance Settings
-			</h3>
-			<p class="text-sm text-gray-600 dark:text-gray-400">
-				Customize window transparency and glass effects
-			</p>
-		</div>
+		<div class="divide-y divide-[0.5px] divide-gray-200 dark:divide-gray-600">
+			<div class="py-3">
+				<div class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+					Electron Appearance Settings
+				</div>
+				<p class="text-[12px] text-gray-500 dark:text-gray-400">
+					Customize window transparency and glass effects
+				</p>
+			</div>
 
-		<!-- Vibrancy (macOS only) -->
-		{#if isMac}
-			<div class="space-y-2">
-				<label for="vibrancy" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-					Vibrancy Effect
-					<span class="ml-2 text-xs text-gray-500">(macOS only)</span>
-				</label>
+			<div class="flex items-start justify-between py-3">
+				<div class="flex flex-col gap-0.5">
+					<label
+						for="vibrancyTheme"
+						class="text-[13px] font-medium text-gray-800 dark:text-gray-200"
+					>
+						{isMac ? 'Material Style' : 'Window Theme'}
+					</label>
+					<p class="text-[11px] text-gray-500 dark:text-gray-400">
+						{isMac ? 'Apple\'s blur/tint preset for entire window' : 'Color scheme for window'}
+					</p>
+				</div>
 				<select
-					id="vibrancy"
-					on:change={updateVibrancy}
-					bind:value={settings.vibrancy}
-					class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+					id="vibrancyTheme"
+					on:change={updateVibrancyTheme}
+					bind:value={settings.vibrancy.theme}
+					class="min-w-[120px] rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
 				>
-					{#each vibrancyOptions as option}
+					{#each themeOptions as option}
 						<option value={option.value}>{option.label}</option>
 					{/each}
 				</select>
 			</div>
-		{/if}
 
-		<!-- Opacity -->
-		<div class="space-y-2">
-			<div class="flex items-center justify-between">
-				<label for="opacity" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-					Window Opacity
+			<!-- Effect Type (Windows only) -->
+			{#if isWindows}
+				<div class="flex items-start justify-between py-3">
+					<div>
+						<label
+							for="vibrancyEffect"
+							class="text-[13px] font-medium text-gray-800 dark:text-gray-200"
+						>
+							Effect Type
+						</label>
+					</div>
+					<select
+						id="vibrancyEffect"
+						on:change={updateVibrancyEffect}
+						bind:value={settings.vibrancy.effect}
+						class="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+					>
+						{#each effectOptions as option}
+							<option value={option.value}>{option.label}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
+
+			<!-- Disable on Blur Toggle -->
+			<div class="flex items-center justify-between py-3">
+				<label for="disableOnBlur" class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+					Disable effect when window loses focus
 				</label>
-				<span class="text-sm text-gray-500 dark:text-gray-400">
-					{Math.round(settings.opacity * 100)}%
-				</span>
+				<input
+					id="disableOnBlur"
+					type="checkbox"
+					bind:checked={settings.vibrancy.disableOnBlur}
+					on:change={updateDisableOnBlur}
+					class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+				/>
 			</div>
-			<input
-				id="opacity"
-				type="range"
-				min="0.1"
-				max="1.0"
-				step="0.05"
-				bind:value={settings.opacity}
-				on:input={updateOpacity}
-				class="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 dark:bg-gray-700"
-			/>
-		</div>
 
-		<!-- Blur Intensity -->
-		<div class="space-y-2">
-			<div class="flex items-center justify-between">
-				<label for="blur" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-					Blur Intensity
-				</label>
-				<span class="text-sm text-gray-500 dark:text-gray-400">
-					{settings.blur}px
-				</span>
+			<!-- Opacity -->
+			<div class="py-3">
+				<div class="flex items-center justify-between">
+					<label for="opacity" class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+						Window Opacity
+					</label>
+					<span class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+						{(settings.opacity * 100).toFixed(0)}%
+					</span>
+				</div>
+				<input
+					id="opacity"
+					type="range"
+					min="0.90"
+					max="1.0"
+					step="0.001"
+					bind:value={settings.opacity}
+					on:input={updateOpacity}
+					class="mt-2 h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-300 dark:bg-gray-600"
+				/>
 			</div>
-			<input
-				id="blur"
-				type="range"
-				min="0"
-				max="100"
-				step="5"
-				bind:value={settings.blur}
-				on:input={updateBlur}
-				class="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 dark:bg-gray-700"
-			/>
-		</div>
 
-		<!-- Saturation -->
-		<div class="space-y-2">
-			<div class="flex items-center justify-between">
-				<label for="saturation" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-					Color Saturation
-				</label>
-				<span class="text-sm text-gray-500 dark:text-gray-400">
-					{settings.saturation}%
-				</span>
+			<!-- Blur Intensity (Windows only) -->
+			{#if isWindows}
+				<div class="py-3">
+					<div class="flex items-center justify-between">
+						<label for="blur" class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+							Blur Intensity
+						</label>
+						<span class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+							{settings.blur}px
+						</span>
+					</div>
+					<input
+						id="blur"
+						type="range"
+						min="0"
+						max="100"
+						step="5"
+						bind:value={settings.blur}
+						on:input={updateBlur}
+						class="mt-2 h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-300 dark:bg-gray-600"
+					/>
+				</div>
+
+				<!-- Saturation (Windows only) -->
+				<div class="py-3">
+					<div class="flex items-center justify-between">
+						<label for="saturation" class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+							Color Saturation
+						</label>
+						<span class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
+							{settings.saturation}%
+						</span>
+					</div>
+					<input
+						id="saturation"
+						type="range"
+						min="100"
+						max="300"
+						step="10"
+						bind:value={settings.saturation}
+						on:input={updateSaturation}
+						class="mt-2 h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-300 dark:bg-gray-600"
+					/>
+				</div>
+			{/if}
+
+			<!-- Tip -->
+			<div class="py-3">
+				<div
+					class="rounded-lg bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+				>
+					<p class="flex items-center gap-1.5 font-medium"><IconLightbulb class="size-4" /> Tip</p>
+					<p class="mt-1 text-[12px]">
+						Settings are saved automatically and will persist across app restarts.
+					</p>
+				</div>
 			</div>
-			<input
-				id="saturation"
-				type="range"
-				min="100"
-				max="300"
-				step="10"
-				bind:value={settings.saturation}
-				on:input={updateSaturation}
-				class="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 dark:bg-gray-700"
-			/>
-		</div>
-
-		<div
-			class="rounded-lg bg-blue-50 p-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
-		>
-			<p class="flex items-center gap-1.5 font-medium"><IconLightbulb class="size-4" /> Tip</p>
-			<p class="mt-1 text-xs">
-				Settings are saved automatically and will persist across app restarts.
-			</p>
 		</div>
 	</div>
 {/if}

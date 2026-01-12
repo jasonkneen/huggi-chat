@@ -536,6 +536,16 @@ const buildModels = async (): Promise<ProcessedModel[]> => {
 			)
 		);
 
+		console.log(
+			"[models.ts] Pinned Claude models after processing:",
+			pinnedModels.map((m) => ({
+				id: m.id,
+				hasEndpoints: !!m.endpoints,
+				endpointsLength: m.endpoints?.length,
+				firstEndpointType: m.endpoints?.[0]?.type,
+			}))
+		);
+
 		if (archBase) {
 			// Build a minimal model config for the alias
 			const aliasRaw = {

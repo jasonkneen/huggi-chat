@@ -168,10 +168,10 @@
 	<a
 		href={`${base}/`}
 		onclick={handleNewChatClick}
-		class="flex rounded-lg border px-2 py-0.5 text-center shadow-sm hover:shadow-none sm:text-smd
+		class="flex rounded-lg border border-[0.5px] px-2 py-0.5 text-center shadow-sm hover:shadow-none sm:text-smd
 			{$activeWorkspace
 			? 'border-blue-500/30 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-900/30 dark:text-blue-400'
-			: 'border-gray-200 bg-white dark:border-gray-600 dark:bg-gray-700'}"
+			: 'border-gray-200 bg-white dark:border-gray-500 dark:bg-gray-700'}"
 		title="Ctrl/Cmd + Shift + O"
 	>
 		New Chat
@@ -258,7 +258,7 @@
 							</div>
 							{#if !ws.isCollapsed && wsConvs.length > 0}
 								<div
-									class="ml-5 flex flex-col gap-0.5 border-l border-gray-200 pl-2 dark:border-gray-700"
+									class="ml-5 flex flex-col gap-0.5 border-l border-l-[0.5px] border-gray-200 pl-2 dark:border-gray-500"
 								>
 									{#each wsConvs as conv}
 										<NavConversationItem {conv} {oneditConversationTitle} {ondeleteConversation} />

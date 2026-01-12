@@ -34,6 +34,7 @@
 	import { allBaseServersEnabled, mcpServersLoaded } from "$lib/stores/mcpServers";
 	import { allWorkspaces, conversationWorkspaces } from "$lib/stores/workspaces";
 	import { shareModal } from "$lib/stores/shareModal";
+	import { toolDebuggerOpen } from "$lib/stores/toolDebugger";
 	import LucideHammer from "~icons/lucide/hammer";
 	import ContextIndicator from "./ContextIndicator.svelte";
 	import { executeCommand, type CommandContext } from "$lib/utils/slashCommandHandlers";
@@ -185,6 +186,8 @@
 			} else if (result.message === "__SHOW_WORKSPACE_MANAGER__") {
 				// This would need UI integration
 				console.log("Workspace manager requested");
+			} else if (result.message === "__SHOW_TOOL_DEBUGGER__") {
+				toolDebuggerOpen.set(true);
 			} else {
 				// Regular message to display
 				context.addSystemMessage(result.message);
@@ -554,7 +557,14 @@
 	}}
 />
 
-<div class="relative z-[-1] min-h-0 min-w-0">
+<div class="relative z-[-1] min-h-0 min-w-0 bg-white dark:bg-transparent">
+	<!-- Top gradient fade -->
+	<div
+		class="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-16 w-full
+			bg-gradient-to-b from-white via-white/50 to-transparent
+			dark:from-black/40 dark:via-black/20 dark:to-transparent"
+	></div>
+
 	{#if shareModalOpen}
 		<ShareConversationModal open={shareModalOpen} onclose={() => shareModal.close()} />
 	{/if}
@@ -628,13 +638,16 @@
 		<ScrollToBottomBtn class="fixed bottom-36 right-4 lg:right-10" scrollNode={chatContainer} />
 	</div>
 
+	<!-- Full-width gradient background -->
 	<div
-		class="pointer-events-none absolute inset-x-0 bottom-0 z-0 mx-auto flex w-full
-			max-w-3xl flex-col items-center justify-center bg-gradient-to-t from-white
-			via-white/100 to-white/0 px-3.5 pt-2 dark:border-gray-800
-			dark:from-gray-900 dark:via-gray-900/100
-			dark:to-gray-900/0 max-sm:py-0 sm:px-5 md:pb-4 xl:max-w-4xl [&>*]:pointer-events-auto"
+		class="pointer-events-none absolute inset-x-0 bottom-0 z-0 flex w-full
+			flex-col items-center justify-center bg-gradient-to-t from-white
+			via-white/50 to-transparent pt-6 dark:border-gray-800
+			dark:from-black/40 dark:via-black/20
+			dark:to-transparent max-sm:py-0 md:pb-4"
 	>
+		<!-- Centered content container -->
+		<div class="mx-auto flex w-full max-w-3xl flex-col items-center px-3.5 sm:px-5 xl:max-w-4xl [&>*]:pointer-events-auto">
 		{#if !draft.length && !messages.length && !sources.length && !loading && currentModel.isRouter && activeExamples.length && !hideRouterExamples && !lastIsError && $mcpServersLoaded}
 			<div
 				class="no-scrollbar mb-3 flex w-full select-none justify-start gap-2 overflow-x-auto whitespace-nowrap text-gray-400 dark:text-gray-500"
@@ -704,9 +717,10 @@
 					handleSubmit();
 				}}
 				class={{
-					"relative flex w-full max-w-4xl flex-1 items-center rounded-xl border bg-gray-100 dark:border-gray-700 dark:bg-gray-800": true,
+					"relative flex w-full max-w-4xl flex-1 items-center rounded-xl border border-[0.5px] bg-gray-100 dark:border-gray-600 dark:bg-gray-800": true,
 					"opacity-30": isReadOnly,
 					"max-sm:mb-4": focused && isVirtualKeyboard(),
+					"processing-glow": loading,
 				}}
 			>
 				{#if isRecording || isTranscribing}
@@ -855,6 +869,7 @@
 				{/if}
 			</div>
 		</div>
+		</div><!-- Close centered content container -->
 	</div>
 </div>
 
@@ -874,6 +889,95 @@
 		100% {
 			box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
 		}
+	}
+
+	/* Processing glow - traveling gradient around border */
+	.processing-glow {
+		position: relative;
+		border-color: transparent !important;
+	}
+
+	.processing-glow::before {
+		content: "";
+		position: absolute;
+		inset: -2px;
+		border-radius: 14px;
+		padding: 2px;
+		background: conic-gradient(
+			from var(--gradient-angle, 0deg),
+			rgba(139, 92, 246, 0.8) 0%,
+			rgba(124, 58, 237, 0.9) 25%,
+			rgba(59, 130, 246, 0.8) 50%,
+			rgba(139, 92, 246, 0.3) 75%,
+			rgba(139, 92, 246, 0.8) 100%
+		);
+		-webkit-mask:
+			linear-gradient(#fff 0 0) content-box,
+			linear-gradient(#fff 0 0);
+		mask:
+			linear-gradient(#fff 0 0) content-box,
+			linear-gradient(#fff 0 0);
+		-webkit-mask-composite: xor;
+		mask-composite: exclude;
+		animation: rotate-gradient 2.5s linear infinite;
+		pointer-events: none;
+	}
+
+	.processing-glow::after {
+		content: "";
+		position: absolute;
+		inset: -4px;
+		border-radius: 16px;
+		background: conic-gradient(
+			from var(--gradient-angle, 0deg),
+			rgba(139, 92, 246, 0.4) 0%,
+			rgba(124, 58, 237, 0.5) 25%,
+			rgba(59, 130, 246, 0.4) 50%,
+			transparent 75%,
+			rgba(139, 92, 246, 0.4) 100%
+		);
+		filter: blur(8px);
+		animation: rotate-gradient 2.5s linear infinite;
+		pointer-events: none;
+		z-index: -1;
+	}
+
+	@keyframes rotate-gradient {
+		0% {
+			--gradient-angle: 0deg;
+		}
+		100% {
+			--gradient-angle: 360deg;
+		}
+	}
+
+	@property --gradient-angle {
+		syntax: "<angle>";
+		initial-value: 0deg;
+		inherits: false;
+	}
+
+	:global(.dark) .processing-glow::before {
+		background: conic-gradient(
+			from var(--gradient-angle, 0deg),
+			rgba(139, 92, 246, 0.7) 0%,
+			rgba(124, 58, 237, 0.8) 25%,
+			rgba(59, 130, 246, 0.7) 50%,
+			rgba(139, 92, 246, 0.2) 75%,
+			rgba(139, 92, 246, 0.7) 100%
+		);
+	}
+
+	:global(.dark) .processing-glow::after {
+		background: conic-gradient(
+			from var(--gradient-angle, 0deg),
+			rgba(139, 92, 246, 0.3) 0%,
+			rgba(124, 58, 237, 0.4) 25%,
+			rgba(59, 130, 246, 0.3) 50%,
+			transparent 75%,
+			rgba(139, 92, 246, 0.3) 100%
+		);
+		filter: blur(12px);
 	}
 
 	.router-badge-text {

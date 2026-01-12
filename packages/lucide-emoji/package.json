@@ -1,0 +1,55 @@
+{
+  "name": "@yourusername/lucide-emoji",
+  "version": "1.0.0",
+  "description": "Convert Unicode emojis to Lucide icons and parse LLM-generated Lucide tags",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./emoji-map": {
+      "types": "./dist/emoji-to-lucide.d.ts",
+      "import": "./dist/emoji-to-lucide.js"
+    },
+    "./sanitizer": {
+      "types": "./dist/emoji-sanitizer.d.ts",
+      "import": "./dist/emoji-sanitizer.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "lucide",
+    "emoji",
+    "icons",
+    "llm",
+    "ai",
+    "sanitizer",
+    "converter"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "peerDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/lucide-emoji"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/lucide-emoji/issues"
+  },
+  "homepage": "https://github.com/yourusername/lucide-emoji#readme"
+}

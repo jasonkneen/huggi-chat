@@ -10,7 +10,8 @@ export type MessageUpdate =
 	| MessageFinalAnswerUpdate
 	| MessageReasoningUpdate
 	| MessageRouterMetadataUpdate
-	| MessageStdioToolRequestUpdate;
+	| MessageStdioToolRequestUpdate
+	| MessageAskUserQuestionUpdate;
 
 export enum MessageUpdateType {
 	Status = "status",
@@ -22,6 +23,7 @@ export enum MessageUpdateType {
 	Reasoning = "reasoning",
 	RouterMetadata = "routerMetadata",
 	StdioToolRequest = "stdioToolRequest",
+	AskUserQuestion = "askUserQuestion",
 }
 
 // Status
@@ -138,4 +140,24 @@ export interface MessageStdioToolRequestUpdate {
 	serverId: string;
 	tool: string;
 	args: Record<string, unknown>;
+}
+
+// AskUserQuestion - interactive form from Claude Agent SDK
+export interface QuestionOption {
+	label: string;
+	description: string;
+}
+
+export interface UserQuestion {
+	question: string;
+	header: string;
+	options: QuestionOption[];
+	multiSelect: boolean;
+}
+
+export interface MessageAskUserQuestionUpdate {
+	type: MessageUpdateType.AskUserQuestion;
+	requestId: string;
+	questions: UserQuestion[];
+	answers?: Record<string, string | string[]>;
 }

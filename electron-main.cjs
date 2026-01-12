@@ -1,14 +1,40 @@
-const { app, BrowserWindow, screen, Menu, dialog } = require("electron");
+const { app, screen, Menu, dialog, BrowserWindow: ElectronBrowserWindow } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
+
+// Platform-specific vibrancy handling
+// electron-acrylic-window is Windows-only (has win32-displayconfig native module)
+// macOS uses built-in Electron vibrancy
+let BrowserWindow = ElectronBrowserWindow;
+let setVibrancy = null;
+
+if (process.platform === "win32") {
+	try {
+		const acrylicWindow = require("electron-acrylic-window");
+		BrowserWindow = acrylicWindow.BrowserWindow;
+		setVibrancy = acrylicWindow.setVibrancy;
+	} catch (e) {
+		console.log("electron-acrylic-window not available, using standard BrowserWindow");
+	}
+}
 
 // Track all windows
 let windows = new Set();
 
 // Appearance settings with defaults
 let appearanceSettings = {
-	vibrancy: "fullscreen-ui",
+	// electron-acrylic-window vibrancy settings (Windows)
+	vibrancy: {
+		theme: "dark", // 'light', 'dark', or '#rrggbbaa'
+		effect: "acrylic", // 'acrylic' or 'blur'
+		disableOnBlur: false, // keep effect when window loses focus
+	},
+	// macOS vibrancy type - uses native setVibrancy() string values
+	// Valid: 'light', 'dark', 'sidebar', 'fullscreen-ui', 'header', 'titlebar', 'menu', 'popover', 'under-window', 'hud'
+	vibrancyType: "sidebar",
+	// Windows 11 native backgroundMaterial (fallback)
+	backgroundMaterial: "acrylic",
 	opacity: 1.0,
 	blur: 40,
 	saturation: 180,
@@ -70,8 +96,8 @@ function applyBlurSettings(window) {
 
     /* Position grid below traffic lights and tab bar */
     body > div.fixed.grid {
-      top: 52px !important;
-      height: calc(100vh - 52px) !important;
+      top: 57px !important;
+      height: calc(100vh - 57px) !important;
     }
 
     /* Reduce gaps in chat messages */
@@ -79,20 +105,46 @@ function applyBlurSettings(window) {
       gap: 0.75rem !important;
     }
 
-    /* Glass panel effect - optional class for specific elements */
-    .glass-panel {
-      background: rgba(255, 255, 255, 0.6);
-      backdrop-filter: blur(${panelBlur}px) saturate(${Math.max(100, saturation - 30)}%);
-      -webkit-backdrop-filter: blur(${panelBlur}px) saturate(${Math.max(100, saturation - 30)}%);
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.1);
+    /* === VIBRANCY: Only window-level backgrounds, NOT content === */
+    
+    /* Main window background - transparent for vibrancy */
+    html, body {
+      background-color: transparent !important;
     }
 
-    /* Dark mode glass panel adjustments */
-    .dark .glass-panel {
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    /* Main grid container - transparent */
+    body > div.fixed.grid {
+      background-color: transparent !important;
+    }
+
+    /* Navigation sidebar - subtle glass effect */
+    nav {
+      background-color: rgba(255, 255, 255, 0.85) !important;
+    }
+    .dark nav {
+      background-color: rgba(30, 30, 30, 0.85) !important;
+    }
+
+    /* Scrollable content area - transparent to show vibrancy */
+    .scrollbar-custom {
+      background-color: transparent !important;
+    }
+
+    /* === KEEP CONTENT READABLE - solid backgrounds === */
+    /* Modals, cards, settings panels stay opaque */
+
+    /* Main content area - let vibrancy show through */
+    .dark .scrollbar-custom {
+      background-color: transparent !important;
+    }
+
+    /* Scrollbar track in dark mode - semi-transparent */
+    .dark .scrollbar-custom::-webkit-scrollbar {
+      background-color: transparent !important;
+    }
+
+    .dark .scrollbar-custom::-webkit-scrollbar-track {
+      background-color: transparent !important;
     }
   `);
 }
@@ -100,15 +152,24 @@ function applyBlurSettings(window) {
 function createWindow() {
 	const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
+	// Determine vibrancy value based on platform
+	// macOS uses string type, Windows uses object via electron-acrylic-window
+	const vibrancyValue =
+		process.platform === "darwin"
+			? appearanceSettings.vibrancyType || "fullscreen-ui"
+			: appearanceSettings.vibrancy;
+
 	const win = new BrowserWindow({
 		width: Math.floor(width * 0.8),
 		height: Math.floor(height * 0.8),
 		minWidth: 800,
 		minHeight: 600,
+		frame: false,
 		transparent: true,
 		titleBarStyle: "customButtonsOnHover",
-		trafficLightPosition: { x: 12, y: 12 }, // Traffic lights appear on hover
-		vibrancy: "ultra-dark", // macOS vibrancy effect
+		trafficLightPosition: { x: 12, y: 17 }, // Traffic lights appear on hover (moved down 5px)
+		// Platform-specific vibrancy: string for macOS, object for Windows
+		vibrancy: vibrancyValue,
 		visualEffectState: "active",
 		backgroundColor: "#00000000", // Fully transparent
 		hasShadow: true,
@@ -126,30 +187,28 @@ function createWindow() {
 	// Add to windows set
 	windows.add(win);
 
-	// Apply additional window effects for macOS
+	// Apply vibrancy - Windows uses electron-acrylic-window, macOS uses native
+	try {
+		if (process.platform === "win32" && setVibrancy) {
+			setVibrancy(win, appearanceSettings.vibrancy);
+		} else if (process.platform === "darwin") {
+			// macOS native vibrancy
+			win.setVibrancy(appearanceSettings.vibrancyType || "fullscreen-ui");
+		}
+	} catch (e) {
+		console.log("Vibrancy not supported:", e);
+	}
+
+	// macOS specific
 	if (process.platform === "darwin") {
 		// Keep window buttons visible for tab bar (frameless mode compatibility)
 		win.setWindowButtonVisibility(true);
-
-		// Enable backdrop blur for liquid glass effect
-		try {
-			// Apply saved vibrancy setting
-			win.setVibrancy(appearanceSettings.vibrancy);
-		} catch (e) {
-			console.log("Vibrancy not supported:", e);
-		}
-
 		// Show tab bar by default
 		win.toggleTabBar();
 	}
 
 	// Set window opacity
 	win.setOpacity(appearanceSettings.opacity);
-
-	// Windows-specific transparency
-	if (process.platform === "win32") {
-		win.setBackgroundColor("#00000000");
-	}
 
 	const isDev = process.env.NODE_ENV === "development";
 
@@ -339,28 +398,82 @@ ipcMain.handle("window-close", (event) => {
 });
 
 // Handle IPC for appearance settings
-ipcMain.handle("set-vibrancy", (event, type) => {
-	const win = BrowserWindow.fromWebContents(event.sender);
-	if (process.platform === "darwin" && win) {
-		try {
-			win.setVibrancy(type);
-			appearanceSettings.vibrancy = type;
-			saveSettings();
-			// Apply to all windows
-			windows.forEach((w) => {
-				try {
-					w.setVibrancy(type);
-				} catch (e) {
-					console.error("Failed to set vibrancy on window:", e);
-				}
-			});
-			return { success: true };
-		} catch (e) {
-			console.error("Failed to set vibrancy:", e);
-			return { success: false, error: e.message };
+ipcMain.handle("set-vibrancy", (event, options) => {
+	try {
+		// Map theme names to macOS vibrancy types
+		// macOS valid types: 'light', 'dark', 'titlebar', 'selection', 'menu', 'popover', 'sidebar',
+		// 'header', 'sheet', 'window', 'hud', 'fullscreen-ui', 'tooltip', 'content', 'under-window', 'under-page'
+		let macVibrancyType = "fullscreen-ui";
+
+		if (typeof options === "string") {
+			// Direct vibrancy type string
+			macVibrancyType = options;
+		} else if (options && options.theme) {
+			// Map theme to vibrancy type
+			if (options.theme === "light") {
+				macVibrancyType = "light";
+			} else if (options.theme === "dark") {
+				macVibrancyType = "dark";
+			} else if (options.theme === "sidebar") {
+				macVibrancyType = "sidebar";
+			} else if (options.theme === "titlebar") {
+				macVibrancyType = "titlebar";
+			} else {
+				macVibrancyType = options.theme;
+			}
 		}
+
+		appearanceSettings.vibrancy = options;
+		appearanceSettings.vibrancyType = macVibrancyType;
+		saveSettings();
+
+		// Apply to all windows - platform specific
+		windows.forEach((w) => {
+			try {
+				if (process.platform === "win32" && setVibrancy) {
+					setVibrancy(w, options);
+				} else if (process.platform === "darwin") {
+					console.log("[vibrancy] Setting macOS vibrancy to:", macVibrancyType);
+					w.setVibrancy(macVibrancyType);
+				}
+			} catch (e) {
+				console.error("Failed to set vibrancy on window:", e);
+			}
+		});
+		return { success: true, vibrancyType: macVibrancyType };
+	} catch (e) {
+		console.error("Failed to set vibrancy:", e);
+		return { success: false, error: e.message };
 	}
-	return { success: false, error: "Vibrancy not supported on this platform" };
+});
+
+// Legacy handler for Windows backgroundMaterial (fallback)
+ipcMain.handle("set-background-material", (event, material) => {
+	// Update vibrancy effect type instead
+	try {
+		const vibrancyOpts = {
+			...appearanceSettings.vibrancy,
+			effect: material === "blur" ? "blur" : "acrylic",
+		};
+		appearanceSettings.vibrancy = vibrancyOpts;
+		saveSettings();
+
+		windows.forEach((w) => {
+			try {
+				if (process.platform === "win32" && setVibrancy) {
+					setVibrancy(w, vibrancyOpts);
+				} else if (process.platform === "darwin") {
+					w.setVibrancy(appearanceSettings.vibrancyType || "fullscreen-ui");
+				}
+			} catch (e) {
+				console.error("Failed to set vibrancy on window:", e);
+			}
+		});
+		return { success: true };
+	} catch (e) {
+		console.error("Failed to set background material:", e);
+		return { success: false, error: e.message };
+	}
 });
 
 ipcMain.handle("set-opacity", (event, opacity) => {

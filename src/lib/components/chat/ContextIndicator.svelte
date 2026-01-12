@@ -113,54 +113,56 @@ Guidelines:
 		};
 	});
 
-	// Calculate percentages for the bar
+	// Calculate percentages for the bar - segments within the USED portion only
 	const segments = $derived.by(() => {
-		const { system, user, assistant, tool, spare, total } = contextBreakdown;
-		const toPercent = (val: number) => Math.max(0, Math.min(100, (val / total) * 100));
+		const { system, user, assistant, tool, used } = contextBreakdown;
+		// Each segment's percentage is relative to the USED tokens, not total
+		const toPercent = (val: number) => (used > 0 ? Math.max(0, (val / used) * 100) : 0);
 
 		return [
-			{ name: "system", value: system, percent: toPercent(system), color: "bg-purple-500" },
-			{ name: "user", value: user, percent: toPercent(user), color: "bg-blue-500" },
+			{ name: "System", value: system, percent: toPercent(system), color: "bg-purple-500" },
+			{ name: "User", value: user, percent: toPercent(user), color: "bg-blue-500" },
 			{
-				name: "assistant",
+				name: "Assistant",
 				value: assistant,
 				percent: toPercent(assistant),
 				color: "bg-green-500",
 			},
-			{ name: "tool", value: tool, percent: toPercent(tool), color: "bg-orange-500" },
-			{
-				name: "spare",
-				value: spare,
-				percent: toPercent(spare),
-				color: "bg-gray-300 dark:bg-gray-600",
-			},
+			{ name: "Tools", value: tool, percent: toPercent(tool), color: "bg-orange-500" },
 		];
 	});
 
 	const usagePercent = $derived(Math.round((contextBreakdown.used / contextBreakdown.total) * 100));
 </script>
 
+<!-- Context bar with count label -->
 <div class="flex flex-1 items-center gap-2">
-	<div
-		class="flex h-2.5 flex-1 items-center overflow-hidden rounded-full bg-gray-200/50 dark:bg-gray-700/50"
-		title="Context: {contextBreakdown.used.toLocaleString()} / {contextBreakdown.total.toLocaleString()} tokens ({usagePercent}%)"
-	>
-		{#each segments as seg}
-			{#if seg.percent > 0}
-				<div
-					class="{seg.color} h-full transition-all duration-300 first:rounded-l-full last:rounded-r-full"
-					style="width: {seg.percent}%"
-					title="{seg.name}: {seg.value.toLocaleString()} tokens"
-				></div>
-			{/if}
-		{/each}
+	<!-- Container fills available space -->
+	<div class="relative h-2.5 flex-1">
+		<!-- Colored bar: width = % used, colors fill it -->
+		<div
+			class="absolute left-0 top-0 flex h-full overflow-hidden rounded-full transition-all duration-500"
+			style="width: {usagePercent}%; min-width: 12px;"
+			title="Context: {contextBreakdown.used.toLocaleString()} / {contextBreakdown.total.toLocaleString()} tokens ({usagePercent}%)"
+		>
+			{#each segments as seg}
+				{#if seg.percent > 0}
+					<div
+						class="{seg.color} h-full cursor-default transition-all duration-300"
+						style="width: {seg.percent}%"
+						title="{seg.name}: {seg.value.toLocaleString()} tokens"
+					></div>
+				{/if}
+			{/each}
+		</div>
 	</div>
+	<!-- Count label -->
 	<span
-		class="whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-xs tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-200"
+		class="whitespace-nowrap text-xs tabular-nums text-gray-500 dark:text-gray-400"
 	>
-		{(contextBreakdown.used / 1000).toFixed(1)}k / {(contextBreakdown.total / 1000).toFixed(0)}k
+		{(contextBreakdown.used / 1000).toFixed(1)}k/{(contextBreakdown.total / 1000).toFixed(0)}k
 		<span
-			class="ml-0.5 font-semibold"
+			class="font-semibold"
 			class:text-red-500={usagePercent > 90}
 			class:text-orange-500={usagePercent > 70 && usagePercent <= 90}
 		>

@@ -62,6 +62,10 @@ export async function* generate(
 		abortSignal: abortController.signal,
 	});
 
+	// Track streamed content for abort handling
+	let streamedContent = "";
+	let wasAborted = false;
+
 	for await (const output of stream) {
 		// Check if this output contains router metadata. Emit if either:
 		// 1) route+model are present (router models), or
@@ -227,6 +231,7 @@ export async function* generate(
 			};
 		} else {
 			yield { type: MessageUpdateType.Stream, token: output.token.text };
+			streamedContent += output.token.text;
 		}
 
 		// abort check
@@ -234,6 +239,7 @@ export async function* generate(
 
 		if (date && date > promptedAt) {
 			logger.info(`Aborting generation for conversation ${conv._id}`);
+			wasAborted = true;
 			if (!abortController.signal.aborted) {
 				abortController.abort();
 			}
@@ -242,5 +248,14 @@ export async function* generate(
 
 		// no output check
 		if (!output) break;
+	}
+
+	// If aborted without a FinalAnswer, yield one to prevent restart
+	if (wasAborted) {
+		yield {
+			type: MessageUpdateType.FinalAnswer,
+			text: streamedContent || "",
+			interrupted: true,
+		};
 	}
 }

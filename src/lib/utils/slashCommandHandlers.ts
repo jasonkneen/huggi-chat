@@ -28,6 +28,8 @@ export async function executeCommand(
 			return handleModel(args, context);
 		case "workspace":
 			return handleWorkspace(args, context);
+		case "debug":
+			return handleDebug(args, context);
 		default:
 			if (command.source === "user" || command.source === "skill") {
 				return handleCustomCommand(command, args, context);
@@ -102,6 +104,10 @@ function handleWorkspace(args: string, context: CommandContext): CommandResult {
 		return { handled: true, message: "Workspaces are only available in the desktop app." };
 	}
 	return { handled: true, message: "__SHOW_WORKSPACE_MANAGER__" };
+}
+
+function handleDebug(args: string, context: CommandContext): CommandResult {
+	return { handled: true, message: "__SHOW_TOOL_DEBUGGER__" };
 }
 
 async function handleCustomCommand(

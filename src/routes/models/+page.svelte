@@ -76,16 +76,16 @@
 			bind:value={modelFilter}
 			placeholder="Search by name"
 			aria-label="Search models by name or id"
-			class="mt-4 w-full rounded-3xl border border-gray-300 bg-white px-5 py-2 text-[15px]
-				placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300
-				dark:border-gray-700 dark:bg-gray-900 dark:focus:ring-gray-700"
+			class="mt-4 w-full rounded-3xl border border-[0.5px] border-gray-300 bg-white px-5 py-2 text-[15px]
+				placeholder:text-gray-400 backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-gray-300
+				dark:border-gray-600 dark:bg-black/20 dark:focus:ring-gray-600"
 		/>
 	</div>
 
 	<div class="scrollbar-custom mt-6 flex-1 overflow-y-auto px-5 pb-16">
 		<div class="mx-auto xl:w-[60rem] 2xl:w-[64rem]">
 			<div
-				class="overflow-hidden rounded-2xl border border-gray-200/60 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900"
+				class="overflow-hidden rounded-2xl border border-gray-200/60 border-[0.5px] bg-white shadow-sm backdrop-blur-md dark:border-gray-600 dark:bg-black/20"
 			>
 				{#each filteredModels as model, index (model.id)}
 					{@const isActive = model.id === $settings.activeModel}
@@ -95,9 +95,9 @@
 						aria-label="Model card for {model.displayName}"
 						class="group flex cursor-pointer items-center gap-2 p-3 sm:gap-4 sm:p-4
 							{isActive
-							? 'bg-gray-50 dark:bg-gray-800'
-							: 'bg-white hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800'}
-							{isLast ? '' : 'border-b border-gray-100 dark:border-gray-800'}"
+							? 'bg-gray-50 dark:bg-white/5'
+							: 'bg-white hover:bg-gray-50 dark:bg-transparent dark:hover:bg-white/5'}
+							{isLast ? '' : 'border-b border-[0.5px] border-gray-100 dark:border-gray-600/50'}"
 					>
 						<!-- Avatar -->
 						<div class="flex-shrink-0">
