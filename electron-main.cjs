@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Menu } = require("electron");
+const { app, BrowserWindow, screen, Menu, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -72,11 +72,6 @@ function applyBlurSettings(window) {
     body > div.fixed.grid {
       top: 52px !important;
       height: calc(100vh - 52px) !important;
-    }
-
-    /* Compress bottom spacing to prevent cutoff */
-    .scrollbar-custom {
-      max-height: calc(100vh - 280px) !important;
     }
 
     /* Reduce gaps in chat messages */
@@ -160,7 +155,7 @@ function createWindow() {
 
 	if (isDev) {
 		// Development: connect to Vite dev server
-		win.loadURL("http://localhost:5174");
+		win.loadURL("http://localhost:5173");
 		win.webContents.openDevTools({ mode: "detach" });
 	} else {
 		// Production: load built files
@@ -406,6 +401,30 @@ ipcMain.handle("reload-css", (event) => {
 	return { success: true };
 });
 
+ipcMain.handle("pick-project-folder", async (event) => {
+	const win = BrowserWindow.fromWebContents(event.sender);
+	const result = await dialog.showOpenDialog(win, {
+		properties: ["openDirectory"],
+		title: "Select Project Folder",
+	});
+
+	if (result.canceled || result.filePaths.length === 0) {
+		return { success: false, canceled: true };
+	}
+
+	const folderPath = result.filePaths[0];
+	const folderName = path.basename(folderPath);
+	const isGitRepo = fs.existsSync(path.join(folderPath, ".git"));
+
+	return {
+		success: true,
+		canceled: false,
+		path: folderPath,
+		name: folderName,
+		isGitRepo,
+	};
+});
+
 // Track running stdio MCP server processes
 const stdioServers = new Map();
 
@@ -506,7 +525,7 @@ ipcMain.handle("mcp-health-check", async (event, config) => {
 				}) + "\n"
 			);
 		} catch (err) {
-			resolve({ ready: false, error: err.message });
+			return { success: false, error: err.message };
 		}
 	});
 });

@@ -11,10 +11,16 @@
 	import CarbonLink from "~icons/carbon/link";
 	import CarbonChevronRight from "~icons/carbon/chevron-right";
 	import CarbonClose from "~icons/carbon/close";
+	import CarbonFolder from "~icons/carbon/folder";
 	import UrlFetchModal from "./UrlFetchModal.svelte";
 	import { TEXT_MIME_ALLOWLIST, IMAGE_MIME_ALLOWLIST_DEFAULT } from "$lib/constants/mime";
 	import MCPServerManager from "$lib/components/mcp/MCPServerManager.svelte";
 	import IconMCP from "$lib/components/icons/IconMCP.svelte";
+	import { workspaces, allWorkspaces, conversationWorkspaces } from "$lib/stores/workspaces";
+	import CarbonCheckmark from "~icons/carbon/checkmark";
+	import { browser } from "$app/environment";
+	import ThinkingLevelChip from "./ThinkingLevelChip.svelte";
+	import { thinkingLevel } from "$lib/stores/thinkingLevel";
 
 	import { isVirtualKeyboard } from "$lib/utils/isVirtualKeyboard";
 	import { requireAuthUser } from "$lib/utils/auth";
@@ -27,6 +33,12 @@
 	} from "$lib/stores/mcpServers";
 	import { getMcpServerFaviconUrl } from "$lib/utils/favicon";
 	import { page } from "$app/state";
+	import SlashCommandMenu from "./SlashCommandMenu.svelte";
+	import AtMentionMenu from "./AtMentionMenu.svelte";
+	import { allSlashCommands, initSlashCommands } from "$lib/stores/slashCommands";
+	import { filterCommands, type SlashCommand } from "$lib/utils/slashCommands";
+	import { allMentionItems, initAtMentions } from "$lib/stores/atMentions";
+	import { parseAtMention, filterMentions, type AtMentionItem } from "$lib/utils/atMentions";
 
 	interface Props {
 		files?: File[];
@@ -35,14 +47,13 @@
 		placeholder?: string;
 		loading?: boolean;
 		disabled?: boolean;
-		// tools removed
 		modelIsMultimodal?: boolean;
-		// Whether the currently selected model supports tool calling (incl. overrides)
 		modelSupportsTools?: boolean;
 		children?: import("svelte").Snippet;
 		onPaste?: (e: ClipboardEvent) => void;
 		focused?: boolean;
 		onsubmit?: () => void;
+		oncommand?: (command: SlashCommand, args: string) => void;
 	}
 
 	let {
@@ -59,7 +70,66 @@
 		onPaste,
 		focused = $bindable(false),
 		onsubmit,
+		oncommand,
 	}: Props = $props();
+
+	let showSlashMenu = $state(false);
+	let slashMenuIndex = $state(0);
+	let showAtMenu = $state(false);
+	let atMenuIndex = $state(0);
+	let atMentionStart = $state(-1);
+
+	const filteredSlashCommands = $derived.by(() => {
+		if (!showSlashMenu) return [];
+		const hasWorkspace = currentConvWorkspaceIds.length > 0;
+		return filterCommands(value, $allSlashCommands, { isElectron, hasWorkspace });
+	});
+
+	const filteredAtMentions = $derived.by(() => {
+		if (!showAtMenu || atMentionStart === -1) return [];
+		const query = value.slice(atMentionStart + 1);
+		return filterMentions($allMentionItems, query);
+	});
+
+	$effect(() => {
+		const startsWithSlash = value.startsWith("/");
+		const hasNoSpace = !value.includes(" ") || value.split(" ").length === 1;
+		showSlashMenu = startsWithSlash && hasNoSpace && value.length < 20;
+		if (showSlashMenu) {
+			slashMenuIndex = 0;
+		}
+	});
+
+	$effect(() => {
+		const parsed = parseAtMention(value);
+		if (parsed && $allMentionItems.length > 0) {
+			showAtMenu = true;
+			atMentionStart = parsed.startIndex;
+			atMenuIndex = 0;
+		} else {
+			showAtMenu = false;
+			atMentionStart = -1;
+		}
+	});
+
+	function handleSlashCommandSelect(command: SlashCommand) {
+		value = `/${command.name} `;
+		showSlashMenu = false;
+	}
+
+	function handleAtMentionSelect(item: AtMentionItem) {
+		if (atMentionStart === -1) return;
+		const before = value.slice(0, atMentionStart);
+		const after = value.slice(value.length);
+		value = `${before}@${item.name} ${after}`;
+		showAtMenu = false;
+		atMentionStart = -1;
+	}
+
+	onMount(() => {
+		initSlashCommands();
+		initAtMentions();
+	});
 
 	const onFileChange = async (e: Event) => {
 		if (!e.target) return;
@@ -79,6 +149,49 @@
 	let isUrlModalOpen = $state(false);
 	let isMcpManagerOpen = $state(false);
 	let isDropdownOpen = $state(false);
+
+	let isElectron = $state(false);
+	let isWorkspaceDropdownOpen = $state(false);
+
+	if (browser && (window as any).electronAPI) {
+		isElectron = true;
+	}
+
+	const currentConvWorkspaceIds = $derived.by(() => {
+		const convId = getConversationId();
+		if (!convId) return [];
+		return $conversationWorkspaces[convId] ?? [];
+	});
+
+	const currentConvWorkspacesList = $derived.by(() => {
+		return $allWorkspaces.filter((w) => currentConvWorkspaceIds.includes(w.id));
+	});
+
+	function getConversationId(): string | null {
+		const match = page.url.pathname.match(/\/conversation\/([^/]+)/);
+		return match ? match[1] : null;
+	}
+
+	function handleToggleWorkspace(workspaceId: string) {
+		const convId = getConversationId();
+		if (!convId) return;
+
+		if (currentConvWorkspaceIds.includes(workspaceId)) {
+			workspaces.removeConversationFromWorkspace(convId, workspaceId);
+		} else {
+			workspaces.addConversationToWorkspace(convId, workspaceId);
+		}
+	}
+
+	async function handleAddToNewWorkspace() {
+		const ws = await workspaces.addWorkspace();
+		if (ws) {
+			const convId = getConversationId();
+			if (convId) {
+				workspaces.addConversationToWorkspace(convId, ws.id);
+			}
+		}
+	}
 
 	function openPickerWithAccept(accept: string) {
 		if (!fileInputEl) return;
@@ -167,6 +280,53 @@
 	});
 
 	function handleKeydown(event: KeyboardEvent) {
+		if (showSlashMenu && filteredSlashCommands.length > 0) {
+			if (event.key === "ArrowDown") {
+				event.preventDefault();
+				slashMenuIndex = (slashMenuIndex + 1) % filteredSlashCommands.length;
+				return;
+			}
+			if (event.key === "ArrowUp") {
+				event.preventDefault();
+				slashMenuIndex =
+					(slashMenuIndex - 1 + filteredSlashCommands.length) % filteredSlashCommands.length;
+				return;
+			}
+			if (event.key === "Enter" || event.key === "Tab") {
+				event.preventDefault();
+				handleSlashCommandSelect(filteredSlashCommands[slashMenuIndex]);
+				return;
+			}
+			if (event.key === "Escape") {
+				event.preventDefault();
+				showSlashMenu = false;
+				return;
+			}
+		}
+
+		if (showAtMenu && filteredAtMentions.length > 0) {
+			if (event.key === "ArrowDown") {
+				event.preventDefault();
+				atMenuIndex = (atMenuIndex + 1) % filteredAtMentions.length;
+				return;
+			}
+			if (event.key === "ArrowUp") {
+				event.preventDefault();
+				atMenuIndex = (atMenuIndex - 1 + filteredAtMentions.length) % filteredAtMentions.length;
+				return;
+			}
+			if (event.key === "Enter" || event.key === "Tab") {
+				event.preventDefault();
+				handleAtMentionSelect(filteredAtMentions[atMenuIndex]);
+				return;
+			}
+			if (event.key === "Escape") {
+				event.preventDefault();
+				showAtMenu = false;
+				return;
+			}
+		}
+
 		if (
 			event.key === "Enter" &&
 			!event.shiftKey &&
@@ -215,7 +375,25 @@
 	);
 </script>
 
-<div class="flex min-h-full flex-1 flex-col" onpaste={onPaste}>
+<div class="relative flex min-h-full flex-1 flex-col" onpaste={onPaste}>
+	{#if showSlashMenu && filteredSlashCommands.length > 0}
+		<SlashCommandMenu
+			commands={filteredSlashCommands}
+			selectedIndex={slashMenuIndex}
+			onselect={handleSlashCommandSelect}
+			onclose={() => (showSlashMenu = false)}
+		/>
+	{/if}
+
+	{#if showAtMenu && filteredAtMentions.length > 0}
+		<AtMentionMenu
+			items={filteredAtMentions}
+			selectedIndex={atMenuIndex}
+			onselect={handleAtMentionSelect}
+			onclose={() => (showAtMenu = false)}
+		/>
+	{/if}
+
 	<textarea
 		rows="1"
 		tabindex="0"
@@ -331,6 +509,50 @@
 									</DropdownMenu.SubContent>
 								</DropdownMenu.Sub>
 
+								{#if isElectron}
+									<DropdownMenu.Sub>
+										<DropdownMenu.SubTrigger
+											class="flex h-9 select-none items-center gap-1 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 dark:data-[state=open]:bg-white/10 sm:h-8"
+										>
+											<CarbonFolder class="size-4 opacity-90 dark:opacity-80" />
+											Add to Workspace
+											<CarbonChevronRight class="ml-auto size-4 opacity-70" />
+										</DropdownMenu.SubTrigger>
+										<DropdownMenu.SubContent
+											class="z-50 min-w-[160px] rounded-xl border border-gray-200 bg-white/95 p-1 text-gray-800 shadow-lg backdrop-blur dark:border-gray-700/60 dark:bg-gray-800/95 dark:text-gray-100"
+											sideOffset={10}
+										>
+											{#each $allWorkspaces as ws (ws.id)}
+												<DropdownMenu.CheckboxItem
+													checked={currentConvWorkspaceIds.includes(ws.id)}
+													onCheckedChange={() => handleToggleWorkspace(ws.id)}
+													closeOnSelect={false}
+													class="flex h-9 select-none items-center gap-2 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 sm:h-8"
+												>
+													{#snippet children({ checked })}
+														{#if checked}
+															<CarbonCheckmark class="size-4 text-blue-600 dark:text-blue-400" />
+														{:else}
+															<CarbonFolder class="size-4 opacity-70" />
+														{/if}
+														<span class="truncate">{ws.name}</span>
+													{/snippet}
+												</DropdownMenu.CheckboxItem>
+											{/each}
+											{#if $allWorkspaces.length > 0}
+												<DropdownMenu.Separator class="my-1 h-px bg-gray-200 dark:bg-gray-700" />
+											{/if}
+											<DropdownMenu.Item
+												class="flex h-9 select-none items-center gap-2 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 sm:h-8"
+												onSelect={handleAddToNewWorkspace}
+											>
+												<IconPlus class="size-4 opacity-70" />
+												Other...
+											</DropdownMenu.Item>
+										</DropdownMenu.SubContent>
+									</DropdownMenu.Sub>
+								{/if}
+
 								<!-- MCP Servers submenu -->
 								<DropdownMenu.Sub>
 									<DropdownMenu.SubTrigger
@@ -402,6 +624,8 @@
 						</DropdownMenu.Portal>
 					</DropdownMenu.Root>
 
+					<ThinkingLevelChip bind:level={$thinkingLevel} />
+
 					{#if $enabledServersCount > 0}
 						<div
 							class="ml-1.5 inline-flex h-8 items-center gap-1.5 rounded-full border border-blue-500/10 bg-blue-600/10 pl-2 pr-1 text-xs font-semibold text-blue-700 dark:bg-blue-600/20 dark:text-blue-400 sm:h-7"
@@ -410,7 +634,7 @@
 							class:cursor-help={!modelSupportsTools}
 							title={modelSupportsTools
 								? "MCP servers enabled"
-								: "Current model doesn’t support tools"}
+								: "Current model doesn't support tools"}
 						>
 							<button
 								class="inline-flex cursor-pointer select-none items-center gap-1 bg-transparent p-0 leading-none text-current focus:outline-none"
@@ -448,6 +672,55 @@
 								<CarbonClose class="size-3.5" />
 							</button>
 						</div>
+					{/if}
+
+					{#if isElectron && currentConvWorkspacesList.length > 0}
+						<DropdownMenu.Root bind:open={isWorkspaceDropdownOpen}>
+							<DropdownMenu.Trigger
+								class="ml-1.5 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-green-500/10 bg-green-600/10 pl-2 pr-2 text-xs font-semibold text-green-700 hover:bg-green-600/15 dark:bg-green-600/20 dark:text-green-400 dark:hover:bg-green-600/25 sm:h-7"
+								title="Workspaces attached to this conversation"
+							>
+								<CarbonFolder class="size-3.5" />
+								Workspaces ({currentConvWorkspacesList.length})
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Portal>
+								<DropdownMenu.Content
+									class="z-50 min-w-[180px] rounded-xl border border-gray-200 bg-white/95 p-1 text-gray-800 shadow-lg backdrop-blur dark:border-gray-700/60 dark:bg-gray-800/95 dark:text-gray-100"
+									side="top"
+									sideOffset={8}
+									align="start"
+								>
+									{#each currentConvWorkspacesList as ws (ws.id)}
+										<div
+											class="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-gray-700 dark:text-gray-200 sm:h-8"
+										>
+											<CarbonFolder class="size-4 text-green-600 dark:text-green-400" />
+											<span class="flex-1 truncate">{ws.name}</span>
+											<button
+												class="grid size-5 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/10 dark:hover:text-gray-300"
+												aria-label="Remove workspace from conversation"
+												onclick={() =>
+													workspaces.removeConversationFromWorkspace(
+														getConversationId() ?? "",
+														ws.id
+													)}
+												type="button"
+											>
+												<CarbonClose class="size-3" />
+											</button>
+										</div>
+									{/each}
+									<DropdownMenu.Separator class="my-1 h-px bg-gray-200 dark:bg-gray-700" />
+									<DropdownMenu.Item
+										class="flex h-9 select-none items-center gap-2 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 sm:h-8"
+										onSelect={handleAddToNewWorkspace}
+									>
+										<IconPlus class="size-4 opacity-70" />
+										Add another workspace...
+									</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</DropdownMenu.Portal>
+						</DropdownMenu.Root>
 					{/if}
 				</div>
 			{/if}

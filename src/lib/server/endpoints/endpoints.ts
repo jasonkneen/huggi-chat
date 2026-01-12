@@ -7,12 +7,15 @@ import type {
 } from "@huggingface/inference";
 import { z } from "zod";
 import { endpointOAIParametersSchema, endpointOai } from "./openai/endpointOai";
+import {
+	endpointClaudeAgentSdkParametersSchema,
+	endpointClaudeAgentSdk,
+} from "./claudeAgentSdk/endpointClaudeAgentSdk";
 import type { Model } from "$lib/types/Model";
 import type { ObjectId } from "mongodb";
 
 export type EndpointMessage = Omit<Message, "id">;
 
-// parameters passed when generating text
 export interface EndpointParameters {
 	messages: EndpointMessage[];
 	preprompt?: Conversation["preprompt"];
@@ -27,15 +30,18 @@ export type TextGenerationStreamOutputSimplified = TextGenerationStreamOutput & 
 	token: TextGenerationStreamToken;
 	routerMetadata?: { route?: string; model?: string; provider?: InferenceProvider };
 };
-// type signature for the endpoint
+
 export type Endpoint = (
 	params: EndpointParameters
 ) => Promise<AsyncGenerator<TextGenerationStreamOutputSimplified, void, void>>;
 
-// list of all endpoint generators
 export const endpoints = {
 	openai: endpointOai,
+	"claude-agent-sdk": endpointClaudeAgentSdk,
 };
 
-export const endpointSchema = z.discriminatedUnion("type", [endpointOAIParametersSchema]);
+export const endpointSchema = z.discriminatedUnion("type", [
+	endpointOAIParametersSchema,
+	endpointClaudeAgentSdkParametersSchema,
+]);
 export default endpoints;

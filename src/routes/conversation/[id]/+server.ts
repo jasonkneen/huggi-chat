@@ -129,9 +129,11 @@ export async function POST({ request, locals, params, getClientAddress }) {
 		selectedMcpServerNames,
 		selectedMcpServers,
 		stdioTools,
+		workspaces: clientWorkspaces,
+		thinkingLevel,
 	} = z
 		.object({
-			id: z.string().uuid().refine(isMessageId).optional(), // parent message id to append to for a normal message, or the message id for a retry/continue
+			id: z.string().uuid().refine(isMessageId).optional(),
 			inputs: z.optional(
 				z
 					.string()
@@ -165,6 +167,18 @@ export async function POST({ request, locals, params, getClientAddress }) {
 					)
 				)
 				.default([]),
+			workspaces: z
+				.optional(
+					z.array(
+						z.object({
+							name: z.string(),
+							path: z.string(),
+							isGitRepo: z.boolean(),
+						})
+					)
+				)
+				.default([]),
+			thinkingLevel: z.optional(z.number().int().min(0).max(4)),
 			files: z.optional(
 				z.array(
 					z.object({
@@ -191,8 +205,10 @@ export async function POST({ request, locals, params, getClientAddress }) {
 			})),
 			stdioTools: stdioTools ?? [],
 		};
+		(locals as unknown as Record<string, unknown>).workspaces = clientWorkspaces ?? [];
+		(locals as unknown as Record<string, unknown>).thinkingLevel = thinkingLevel;
 	} catch {
-		// ignore attachment errors, pipeline will just use env servers
+		// ignore
 	}
 
 	const inputFiles = await Promise.all(

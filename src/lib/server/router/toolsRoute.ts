@@ -8,6 +8,7 @@ type LocalsWithMcp = App.Locals & {
 	mcp?: {
 		selectedServers?: unknown[];
 		selectedServerNames?: unknown[];
+		stdioTools?: unknown[];
 	};
 };
 
@@ -22,7 +23,9 @@ export function hasActiveToolsSelection(locals: App.Locals | undefined): boolean
 			Array.isArray(reqMcp?.selectedServers) && (reqMcp?.selectedServers?.length ?? 0) > 0;
 		const byName =
 			Array.isArray(reqMcp?.selectedServerNames) && (reqMcp?.selectedServerNames?.length ?? 0) > 0;
-		return Boolean(byConfig || byName);
+		const byStdio =
+			Array.isArray(reqMcp?.stdioTools) && (reqMcp?.stdioTools?.length ?? 0) > 0;
+		return Boolean(byConfig || byName || byStdio);
 	} catch {
 		return false;
 	}

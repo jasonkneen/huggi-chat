@@ -6,6 +6,17 @@ import endpoints, { endpointSchema, type Endpoint } from "./endpoints/endpoints"
 import JSON5 from "json5";
 import { logger } from "$lib/server/logger";
 import { makeRouterEndpoint } from "$lib/server/router/endpoint";
+import { readFile } from "fs/promises";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import {
+	detectToolFormat,
+	getToolFormatConfig,
+	type ToolFormat,
+	type ToolFormatConfig,
+} from "./textGeneration/mcp/toolFormatParser";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
@@ -13,6 +24,31 @@ const sanitizeJSONEnv = (val: string, fallback: string) => {
 	const raw = (val ?? "").trim();
 	const unquoted = raw.startsWith("`") && raw.endsWith("`") ? raw.slice(1, -1) : raw;
 	return unquoted || fallback;
+};
+
+/**
+ * Converts a model ID to a safe filename for the prompt file
+ */
+const sanitizeModelIdForFilename = (modelId: string): string => {
+	return modelId.replace(/\//g, "--").replace(/[^a-zA-Z0-9_.-]/g, "_");
+};
+
+/**
+ * Loads a model-specific system prompt addendum from the model-prompts directory
+ * Returns empty string if no prompt file exists for the model
+ */
+const loadModelPrompt = async (modelId: string): Promise<string> => {
+	const filename = sanitizeModelIdForFilename(modelId) + ".md";
+	const promptPath = join(__dirname, "model-prompts", filename);
+
+	try {
+		const content = await readFile(promptPath, "utf-8");
+		logger.debug({ modelId, promptPath }, "[models] Loaded model prompt");
+		return content;
+	} catch {
+		// No prompt file for this model - that's fine
+		return "";
+	}
 };
 
 const modelConfig = z.object({
@@ -62,6 +98,10 @@ const modelConfig = z.object({
 	embeddingModel: z.never().optional(),
 	/** Used to enable/disable system prompt usage */
 	systemRoleSupported: z.boolean().default(true),
+	/** Tool call output format (openai, minimax, hermes, etc.) */
+	toolFormat: z
+		.enum(["openai", "minimax", "anthropic", "hermes", "qwen", "glm", "deepseek", "auto"])
+		.optional(),
 });
 
 type ModelConfig = z.infer<typeof modelConfig>;
@@ -118,15 +158,44 @@ function getChatPromptRender(_m: ModelConfig): (inputs: ChatTemplateInput) => st
 	};
 }
 
-const processModel = async (m: ModelConfig) => ({
-	...m,
-	chatPromptRender: await getChatPromptRender(m),
-	id: m.id || m.name,
-	displayName: m.displayName || m.name,
-	preprompt: m.prepromptUrl ? await fetch(m.prepromptUrl).then((r) => r.text()) : m.preprompt,
-	parameters: { ...m.parameters, stop_sequences: m.parameters?.stop },
-	unlisted: m.unlisted ?? false,
-});
+const processModel = async (m: ModelConfig) => {
+	const modelId = m.id || m.name;
+
+	// Load base preprompt from URL or config
+	const basePreprompt = m.prepromptUrl
+		? await fetch(m.prepromptUrl).then((r) => r.text())
+		: m.preprompt;
+
+	// Load model-specific prompt addendum from markdown file
+	const modelPrompt = await loadModelPrompt(modelId);
+
+	// Combine preprompts: base preprompt (if any) + model-specific prompt
+	const combinedPreprompt = [basePreprompt, modelPrompt].filter(Boolean).join("\n\n");
+
+	// Detect tool format for this model (use provided or auto-detect)
+	const toolFormat = m.toolFormat || detectToolFormat(modelId);
+	const toolFormatConfig = getToolFormatConfig(modelId);
+
+	// Log tool format detection for non-OpenAI formats
+	if (toolFormat !== "openai") {
+		logger.info(
+			{ modelId, toolFormat, supportsParallelCalls: toolFormatConfig.supportsParallelCalls },
+			"[models] Detected non-OpenAI tool format"
+		);
+	}
+
+	return {
+		...m,
+		chatPromptRender: await getChatPromptRender(m),
+		id: modelId,
+		displayName: m.displayName || m.name,
+		preprompt: combinedPreprompt,
+		parameters: { ...m.parameters, stop_sequences: m.parameters?.stop },
+		unlisted: m.unlisted ?? false,
+		toolFormat,
+		toolFormatConfig,
+	};
+};
 
 const addEndpoint = (m: Awaited<ReturnType<typeof processModel>>) => ({
 	...m,
@@ -134,10 +203,12 @@ const addEndpoint = (m: Awaited<ReturnType<typeof processModel>>) => ({
 		if (!m.endpoints || m.endpoints.length === 0) {
 			throw new Error("No endpoints configured. This build requires OpenAI-compatible endpoints.");
 		}
-		// Only support OpenAI-compatible endpoints in this build
 		const endpoint = m.endpoints[0];
+		if (endpoint.type === "claude-agent-sdk") {
+			return await endpoints["claude-agent-sdk"]({ ...endpoint, model: m });
+		}
 		if (endpoint.type !== "openai") {
-			throw new Error("Only 'openai' endpoint type is supported in this build");
+			throw new Error("Only 'openai' and 'claude-agent-sdk' endpoint types are supported");
 		}
 		return await endpoints.openai({ ...endpoint, model: m });
 	},
@@ -416,6 +487,55 @@ const buildModels = async (): Promise<ProcessedModel[]> => {
 
 		let decorated = builtModels as ProcessedModel[];
 
+		const pinnedClaudeModels = [
+			{
+				id: "claude-sonnet-4-5",
+				name: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+				description: "Anthropic's most capable model for complex reasoning and coding tasks",
+				logoUrl: "https://www.anthropic.com/images/icons/safari-pinned-tab.svg",
+				multimodal: true,
+				multimodalAcceptedMimetypes: ["image/*"],
+				supportsTools: true,
+				endpoints: [{ type: "claude-agent-sdk" as const }],
+			},
+			{
+				id: "claude-opus-4-5",
+				name: "claude-opus-4-5",
+				displayName: "Claude Opus 4.5",
+				description: "Anthropic's flagship model with the highest capability",
+				logoUrl: "https://www.anthropic.com/images/icons/safari-pinned-tab.svg",
+				multimodal: true,
+				multimodalAcceptedMimetypes: ["image/*"],
+				supportsTools: true,
+				endpoints: [{ type: "claude-agent-sdk" as const }],
+			},
+			{
+				id: "claude-haiku-4-5",
+				name: "claude-haiku-4-5",
+				displayName: "Claude Haiku 4.5",
+				description: "Anthropic's fastest and most cost-effective model",
+				logoUrl: "https://www.anthropic.com/images/icons/safari-pinned-tab.svg",
+				multimodal: true,
+				multimodalAcceptedMimetypes: ["image/*"],
+				supportsTools: true,
+				endpoints: [{ type: "claude-agent-sdk" as const }],
+			},
+		] as ModelConfig[];
+
+		const pinnedModels = await Promise.all(
+			pinnedClaudeModels.map((m) =>
+				processModel(m)
+					.then(addEndpoint)
+					.then((model) => ({
+						...model,
+						isRouter: false,
+						hasInferenceAPI: false,
+						isPinned: true,
+					}))
+			)
+		);
+
 		if (archBase) {
 			// Build a minimal model config for the alias
 			const aliasRaw = {
@@ -454,9 +574,10 @@ const buildModels = async (): Promise<ProcessedModel[]> => {
 				getEndpoint: async (): Promise<Endpoint> => makeRouterEndpoint(aliasModel),
 			} as ProcessedModel;
 
-			// Put alias first
 			decorated = [aliasModel, ...decorated];
 		}
+
+		decorated = [...pinnedModels, ...decorated] as ProcessedModel[];
 
 		return decorated;
 	} catch (e) {

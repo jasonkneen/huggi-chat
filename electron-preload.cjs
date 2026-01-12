@@ -21,6 +21,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	mcpStopServer: (config) => ipcRenderer.invoke("mcp-stop-server", config),
 	mcpListTools: (config) => ipcRenderer.invoke("mcp-list-tools", config),
 
+	// Project folder & Git operations
+	pickProjectFolder: () => ipcRenderer.invoke("pick-project-folder"),
+	gitStatus: (config) => ipcRenderer.invoke("git-status", config),
+	gitDiff: (config) => ipcRenderer.invoke("git-diff", config),
+	readFile: (config) => ipcRenderer.invoke("read-file", config),
+	listDirectory: (config) => ipcRenderer.invoke("list-directory", config),
+
 	// Platform info
 	platform: process.platform,
 	isElectron: true,

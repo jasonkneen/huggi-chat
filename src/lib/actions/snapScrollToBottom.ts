@@ -81,7 +81,13 @@ export const snapScrollToBottom = (node: HTMLElement, dependency: MaybeScrollDep
 		isProgrammaticScroll = true;
 		lastProgrammaticScrollTime = Date.now();
 
-		node.scrollTo({ top: node.scrollHeight });
+		const distance = node.scrollHeight - node.scrollTop - node.clientHeight;
+		const useSmooth = distance < 300;
+
+		node.scrollTo({
+			top: node.scrollHeight,
+			behavior: useSmooth ? "smooth" : "instant",
+		});
 
 		if (typeof requestAnimationFrame === "function") {
 			requestAnimationFrame(() => {

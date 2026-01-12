@@ -32,8 +32,13 @@
 	import { mcpExamples } from "$lib/constants/mcpExamples";
 	import type { RouterFollowUp, RouterExample } from "$lib/constants/routerExamples";
 	import { allBaseServersEnabled, mcpServersLoaded } from "$lib/stores/mcpServers";
+	import { allWorkspaces, conversationWorkspaces } from "$lib/stores/workspaces";
 	import { shareModal } from "$lib/stores/shareModal";
 	import LucideHammer from "~icons/lucide/hammer";
+	import ContextIndicator from "./ContextIndicator.svelte";
+	import { executeCommand, type CommandContext } from "$lib/utils/slashCommandHandlers";
+	import { type SlashCommand, getCommand } from "$lib/utils/slashCommands";
+	import { getSlashCommands } from "$lib/stores/slashCommands";
 
 	import { fly } from "svelte/transition";
 	import { cubicInOut } from "svelte/easing";
@@ -96,11 +101,96 @@
 	);
 	let isTouchDevice = $derived(browser && navigator.maxTouchPoints > 0);
 
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
 		if (requireAuthUser() || loading || !draft) return;
+
+		if (draft.trim().startsWith("/")) {
+			const trimmed = draft.trim();
+			const spaceIdx = trimmed.indexOf(" ");
+			const cmdName = spaceIdx === -1 ? trimmed.slice(1) : trimmed.slice(1, spaceIdx);
+			const args = spaceIdx === -1 ? "" : trimmed.slice(spaceIdx + 1).trim();
+
+			const allCmds = getSlashCommands();
+			console.log(
+				"[SlashCmd] Looking for:",
+				cmdName,
+				"in",
+				allCmds.map((c) => c.name)
+			);
+
+			const cmd = allCmds.find((c) => c.name.toLowerCase() === cmdName.toLowerCase());
+			if (cmd) {
+				console.log("[SlashCmd] Found command:", cmd.name);
+				draft = "";
+				await handleCommand(cmd, args);
+				return;
+			}
+			console.log("[SlashCmd] Command not found, sending as message");
+		}
+
 		onmessage?.(draft);
 		draft = "";
 	};
+
+	// Get conversation ID for workspace lookup
+	function getConversationId(): string | null {
+		const match = page.url.pathname.match(/\/conversation\/([^/]+)/);
+		return match ? match[1] : null;
+	}
+
+	// Current conversation's workspaces
+	const currentConvWorkspaceIds = $derived.by(() => {
+		const convId = getConversationId();
+		if (!convId) return [];
+		return $conversationWorkspaces[convId] ?? [];
+	});
+
+	const currentWorkspaces = $derived.by(() => {
+		return $allWorkspaces.filter((w) => currentConvWorkspaceIds.includes(w.id));
+	});
+
+	const isElectron = $derived(browser && (window as any).electronAPI);
+
+	async function handleCommand(command: SlashCommand, args: string) {
+		const context: CommandContext = {
+			workspaces: currentWorkspaces.map((w) => ({
+				name: w.name,
+				path: w.path,
+				isGitRepo: w.isGitRepo ?? false,
+			})),
+			isElectron: !!isElectron,
+			addSystemMessage: (content: string) => {
+				// For now, system messages are sent as user messages that instruct the model
+				// A proper implementation would add a system message UI element
+				console.log("[System]", content);
+			},
+			sendUserMessage: (content: string) => {
+				onmessage?.(content);
+			},
+		};
+
+		const result = await executeCommand(command, args, context);
+
+		if (result.message) {
+			// Handle special command results
+			if (result.message === "__CLEAR_CONVERSATION__") {
+				// Would need a prop for this - for now just log
+				console.log("Clear conversation requested");
+			} else if (result.message === "__SHOW_MODEL_SELECTOR__") {
+				// Navigate to model settings
+				window.location.href = `${base}/settings`;
+			} else if (result.message.startsWith("__SWITCH_MODEL__:")) {
+				const modelId = result.message.replace("__SWITCH_MODEL__:", "");
+				window.location.href = `${base}/settings/${modelId}`;
+			} else if (result.message === "__SHOW_WORKSPACE_MANAGER__") {
+				// This would need UI integration
+				console.log("Workspace manager requested");
+			} else {
+				// Regular message to display
+				context.addSystemMessage(result.message);
+			}
+		}
+	}
 
 	let lastTarget: EventTarget | null = null;
 
@@ -483,9 +573,21 @@
 			{#if messages.length > 0}
 				<div class="flex h-max flex-col gap-8 pb-52">
 					{#each messages as message, idx (message.id)}
+						{@const prevUserMsg =
+							message.from === "assistant"
+								? messages
+										.slice(0, idx)
+										.reverse()
+										.find((m) => m.from === "user")
+								: null}
+						{@const inputTokens = prevUserMsg
+							? Math.ceil((prevUserMsg.content?.length || 0) / 4) +
+								(prevUserMsg.files?.length || 0) * 500
+							: 0}
 						<ChatMessage
 							{loading}
 							{message}
+							{inputTokens}
 							alternatives={messagesAlternatives.find((a) => a.includes(message.id)) ?? []}
 							isAuthor={!shared}
 							readOnly={isReadOnly}
@@ -635,6 +737,7 @@
 								bind:files
 								mimeTypes={activeMimeTypes}
 								onsubmit={handleSubmit}
+								oncommand={handleCommand}
 								{onPaste}
 								disabled={isReadOnly || lastIsError}
 								{modelIsMultimodal}
@@ -742,8 +845,13 @@
 						{currentModel.id}
 					</span>
 				{/if}
+
+				<div class="ml-3 flex-1 max-sm:hidden">
+					<ContextIndicator {messages} {currentModel} {preprompt} tools={availableTools} />
+				</div>
+
 				{#if !messages.length && !loading}
-					<span>Generated content may be inaccurate or false.</span>
+					<span class="ml-2 max-sm:hidden">Generated content may be inaccurate or false.</span>
 				{/if}
 			</div>
 		</div>

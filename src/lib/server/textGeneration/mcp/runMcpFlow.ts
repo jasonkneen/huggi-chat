@@ -26,6 +26,14 @@ import { buildImageRefResolver } from "./fileRefs";
 import { prepareMessagesWithFiles } from "$lib/server/textGeneration/utils/prepareFiles";
 import { makeImageProcessor } from "$lib/server/endpoints/images";
 import { logger } from "$lib/server/logger";
+import { logMcpDebug } from "$lib/server/mcp/debugLog";
+import { buildLocalToolContext, getLocalToolsForWorkspaces } from "$lib/server/mcp/localTools";
+import {
+	parseToolCalls,
+	hasToolCallMarkers,
+	type ToolFormat,
+	type ToolFormatConfig,
+} from "./toolFormatParser";
 
 export interface StdioToolDefinition {
 	serverId: string;
@@ -54,7 +62,11 @@ export async function* runMcpFlow({
 	boolean,
 	undefined
 > {
-	// Start from env-configured servers
+	const endpointType = model.endpoints?.[0]?.type;
+	if (endpointType === "claude-agent-sdk") {
+		return false;
+	}
+
 	let servers = getMcpServers();
 	try {
 		logger.debug(
@@ -64,6 +76,8 @@ export async function* runMcpFlow({
 	} catch {}
 
 	// Merge in request-provided custom servers (if any)
+	let selectedServerNames: string[] = [];
+	let selectedServers: Array<{ name: string; url: string; headers?: Record<string, string> }> = [];
 	try {
 		const reqMcp = (
 			locals as unknown as {
@@ -73,7 +87,11 @@ export async function* runMcpFlow({
 				};
 			}
 		)?.mcp;
-		const custom = Array.isArray(reqMcp?.selectedServers) ? reqMcp?.selectedServers : [];
+		selectedServerNames = Array.isArray(reqMcp?.selectedServerNames)
+			? reqMcp?.selectedServerNames
+			: [];
+		selectedServers = Array.isArray(reqMcp?.selectedServers) ? reqMcp?.selectedServers : [];
+		const custom = selectedServers;
 		if (custom.length > 0) {
 			// Invalidate cached tool list when the set of servers changes at request-time
 			resetMcpToolsCache();
@@ -118,14 +136,65 @@ export async function* runMcpFlow({
 		// ignore selection merge errors and proceed with env servers
 	}
 
+	const stdioToolDefs =
+		(locals as unknown as { mcp?: { stdioTools?: StdioToolDefinition[] } })?.mcp?.stdioTools ?? [];
+	const hasStdioTools = stdioToolDefs.length > 0;
+	const workspaces = (
+		locals as unknown as {
+			workspaces?: Array<{ name: string; path: string; isGitRepo: boolean }>;
+		}
+	)?.workspaces;
+	const localToolContext = buildLocalToolContext(workspaces);
+	const { tools: localTools, mapping: localMapping } = getLocalToolsForWorkspaces(workspaces);
+	const hasLocalTools = localTools.length > 0;
+	const hasWorkspaceTools = (workspaces?.length ?? 0) > 0;
+	const lastUserMessage = [...messages].reverse().find((msg) => msg.from === "user")?.content ?? "";
+	const wantsToolList =
+		/\b(list|show|what|which)\b.*\btools?\b/i.test(lastUserMessage) ||
+		/\bmcp\s+tools?\b/i.test(lastUserMessage);
+	const shouldForceToolUse =
+		hasWorkspaceTools &&
+		/\b(file|files|repo|codebase|project|directory|folder|read|open|list|search|grep|find|edit|update|patch|fix|refactor|implement|add|remove)\b/i.test(
+			lastUserMessage
+		);
+	const forcedToolName =
+		wantsToolList && localMapping.local_list_tools
+			? localMapping.local_list_tools.fnName
+			: shouldForceToolUse && localMapping.list_files
+				? localMapping.list_files.fnName
+				: undefined;
+
 	// If selection/merge yielded no servers, bail early with clearer log
-	if (servers.length === 0) {
+	if (servers.length === 0 && !hasStdioTools && !hasWorkspaceTools && !wantsToolList) {
+		void logMcpDebug({
+			event: "mcp_skip",
+			reason: "no_servers_selected",
+			model: model.id ?? model.name,
+			selectedServerNamesCount: selectedServerNames.length,
+			selectedServersCount: selectedServers.length,
+			stdioToolCount: stdioToolDefs.length,
+			localToolCount: localTools.length,
+			hasWorkspaceTools,
+			wantsToolList,
+		});
 		logger.warn({}, "[mcp] no MCP servers selected after merge/name filter");
 		return false;
 	}
+	if (servers.length === 0 && (hasStdioTools || hasWorkspaceTools || wantsToolList)) {
+		void logMcpDebug({
+			event: "mcp_info",
+			stage: "stdio_only",
+			model: model.id ?? model.name,
+			stdioToolCount: stdioToolDefs.length,
+			localToolCount: localTools.length,
+			hasWorkspaceTools,
+			wantsToolList,
+		});
+		logger.info({}, "[mcp] no HTTP MCP servers selected; proceeding with local/stdio tools");
+	}
 
 	// Enforce server-side safety (public HTTPS only, no private ranges)
-	{
+	if (servers.length > 0) {
 		const before = servers.slice();
 		servers = servers.filter((s) => {
 			try {
@@ -137,6 +206,12 @@ export async function* runMcpFlow({
 		try {
 			const rejected = before.filter((b) => !servers.includes(b));
 			if (rejected.length > 0) {
+				void logMcpDebug({
+					event: "mcp_skip",
+					reason: "url_safety_reject",
+					model: model.id ?? model.name,
+					rejected: rejected.map((r) => ({ name: r.name, url: r.url })),
+				});
 				logger.warn(
 					{ rejected: rejected.map((r) => ({ name: r.name, url: r.url })) },
 					"[mcp] rejected servers by URL safety"
@@ -144,7 +219,16 @@ export async function* runMcpFlow({
 			}
 		} catch {}
 	}
-	if (servers.length === 0) {
+	if (servers.length === 0 && !hasStdioTools && !hasWorkspaceTools && !wantsToolList) {
+		void logMcpDebug({
+			event: "mcp_skip",
+			reason: "url_safety_reject_all",
+			model: model.id ?? model.name,
+			stdioToolCount: stdioToolDefs.length,
+			localToolCount: localTools.length,
+			hasWorkspaceTools,
+			wantsToolList,
+		});
 		logger.warn({}, "[mcp] all selected MCP servers rejected by URL safety guard");
 		return false;
 	}
@@ -186,14 +270,34 @@ export async function* runMcpFlow({
 		{ count: servers.length, servers: servers.map((s) => s.name) },
 		"[mcp] servers configured"
 	);
-	if (servers.length === 0) {
+	if (servers.length === 0 && !hasStdioTools && !hasWorkspaceTools && !wantsToolList) {
+		void logMcpDebug({
+			event: "mcp_skip",
+			reason: "servers_empty_after_config",
+			model: model.id ?? model.name,
+		});
 		return false;
 	}
 
 	// Gate MCP flow based on model tool support (aggregated) with user override
 	try {
 		const supportsTools = Boolean((model as unknown as { supportsTools?: boolean }).supportsTools);
-		const toolsEnabled = Boolean(forceTools) || supportsTools;
+		const hasConfiguredTools = servers.length > 0 || hasStdioTools || hasWorkspaceTools;
+		const toolsEnabled =
+			Boolean(forceTools) || supportsTools || hasConfiguredTools || wantsToolList;
+		void logMcpDebug({
+			event: "mcp_gate",
+			model: model.id ?? model.name,
+			supportsTools,
+			forceTools: Boolean(forceTools),
+			toolsEnabled,
+			hasConfiguredTools,
+			stdioToolCount: stdioToolDefs.length,
+			httpServerCount: servers.length,
+			localToolCount: localTools.length,
+			hasWorkspaceTools,
+			wantsToolList,
+		});
 		logger.debug(
 			{
 				model: model.id ?? model.name,
@@ -204,6 +308,13 @@ export async function* runMcpFlow({
 			"[mcp] tools gate evaluation"
 		);
 		if (!toolsEnabled) {
+			void logMcpDebug({
+				event: "mcp_skip",
+				reason: "tools_disabled_for_model",
+				model: model.id ?? model.name,
+				supportsTools,
+				forceTools: Boolean(forceTools),
+			});
 			logger.info(
 				{ model: model.id ?? model.name },
 				"[mcp] tools disabled for model; skipping MCP flow"
@@ -238,6 +349,13 @@ export async function* runMcpFlow({
 	});
 
 	if (!runMcp) {
+		void logMcpDebug({
+			event: "mcp_skip",
+			reason: "router_disabled",
+			model: model.id ?? model.name,
+			targetModel: targetModel.id ?? targetModel.name,
+			resolvedRoute,
+		});
 		logger.info(
 			{ model: targetModel.id ?? targetModel.name, resolvedRoute },
 			"[mcp] runMcp=false (routing chose non-tools candidate)"
@@ -245,17 +363,15 @@ export async function* runMcpFlow({
 		return false;
 	}
 
-	const { tools: httpTools, mapping: httpMapping } = await getOpenAiToolsForMcp(servers, {
-		signal: abortSignal,
-	});
+	const { tools: httpTools, mapping: httpMapping } =
+		servers.length > 0
+			? await getOpenAiToolsForMcp(servers, { signal: abortSignal })
+			: { tools: [], mapping: {} };
 
 	const extendedMapping: Record<string, ExtendedToolMapping> = {};
 	for (const [name, entry] of Object.entries(httpMapping)) {
 		extendedMapping[name] = { ...entry, isStdio: false };
 	}
-
-	const stdioToolDefs =
-		(locals as unknown as { mcp?: { stdioTools?: StdioToolDefinition[] } })?.mcp?.stdioTools ?? [];
 
 	const stdioTools: OpenAiTool[] = [];
 	const seenNames = new Set(Object.keys(extendedMapping));
@@ -286,9 +402,23 @@ export async function* runMcpFlow({
 		};
 	}
 
-	const oaTools = [...httpTools, ...stdioTools];
+	for (const [name, entry] of Object.entries(localMapping)) {
+		if (seenNames.has(name)) continue;
+		seenNames.add(name);
+		extendedMapping[name] = { ...entry, isLocal: true };
+	}
+
+	const oaTools = [...httpTools, ...stdioTools, ...localTools];
 
 	try {
+		void logMcpDebug({
+			event: "mcp_tools_listed",
+			model: model.id ?? model.name,
+			httpToolCount: httpTools.length,
+			stdioToolCount: stdioTools.length,
+			localToolCount: localTools.length,
+			totalToolCount: oaTools.length,
+		});
 		logger.info(
 			{
 				httpToolCount: httpTools.length,
@@ -300,6 +430,11 @@ export async function* runMcpFlow({
 		);
 	} catch {}
 	if (oaTools.length === 0) {
+		void logMcpDebug({
+			event: "mcp_skip",
+			reason: "zero_tools",
+			model: model.id ?? model.name,
+		});
 		logger.warn({}, "[mcp] zero tools available after listing; skipping MCP flow");
 		return false;
 	}
@@ -332,6 +467,15 @@ export async function* runMcpFlow({
 		});
 
 		const mmEnabled = (forceMultimodal ?? false) || targetModel.multimodal;
+		void logMcpDebug({
+			event: "mcp_start",
+			model: targetModel.id ?? targetModel.name,
+			mmEnabled,
+			route: resolvedRoute,
+			candidateModelId,
+			toolCount: oaTools.length,
+			forcedToolName: forcedToolName ?? "",
+		});
 		logger.info(
 			{
 				targetModel: targetModel.id ?? targetModel.name,
@@ -348,7 +492,30 @@ export async function* runMcpFlow({
 			imageProcessor,
 			mmEnabled
 		);
-		const toolPreprompt = buildToolPreprompt(oaTools);
+		const toolServerMapping: Record<
+			string,
+			{ server: string; isStdio?: boolean; isLocal?: boolean }
+		> = {};
+		for (const [fnName, info] of Object.entries(extendedMapping)) {
+			toolServerMapping[fnName] = {
+				server: info.server,
+				isStdio: info.isStdio,
+				isLocal: info.isLocal,
+			};
+		}
+		const toolCatalog = oaTools.map((tool) => {
+			const name = tool.function.name;
+			const mappingEntry = toolServerMapping[name];
+			return {
+				name,
+				description: tool.function.description,
+				server: mappingEntry?.server,
+				isStdio: mappingEntry?.isStdio,
+				isLocal: mappingEntry?.isLocal,
+			};
+		});
+		localToolContext.toolCatalog = toolCatalog;
+		const toolPreprompt = buildToolPreprompt(oaTools, toolServerMapping, workspaces);
 		const prepromptPieces: string[] = [];
 		if (toolPreprompt.trim().length > 0) {
 			prepromptPieces.push(toolPreprompt);
@@ -411,7 +578,6 @@ export async function* runMcpFlow({
 			stop: stopSequences,
 			max_tokens: typeof maxTokens === "number" ? maxTokens : undefined,
 			tools: oaTools,
-			tool_choice: "auto",
 		};
 
 		const toPrimitive = (value: unknown) => {
@@ -459,22 +625,49 @@ export async function* runMcpFlow({
 			lastAssistantContent = "";
 			streamedContent = false;
 
+			const toolChoice =
+				loop === 0 && forcedToolName
+					? { type: "function", function: { name: forcedToolName } }
+					: "auto";
 			const completionRequest: ChatCompletionCreateParamsStreaming = {
 				...completionBase,
+				tool_choice: toolChoice,
 				messages: messagesOpenAI,
 			};
 
-			const completionStream: Stream<ChatCompletionChunk> = await openai.chat.completions.create(
-				completionRequest,
-				{
+			let completionStream: Stream<ChatCompletionChunk>;
+			try {
+				completionStream = await openai.chat.completions.create(completionRequest, {
 					signal: abortSignal,
 					headers: {
 						"ChatUI-Conversation-ID": conv._id.toString(),
 						"X-use-cache": "false",
 						...(locals?.token ? { Authorization: `Bearer ${locals.token}` } : {}),
 					},
+				});
+			} catch (err) {
+				if (toolChoice !== "auto") {
+					void logMcpDebug({
+						event: "mcp_tool_choice_fallback",
+						model: targetModel.id ?? targetModel.name,
+						toolChoice: forcedToolName,
+						error: String(err ?? ""),
+					});
+					completionStream = await openai.chat.completions.create(
+						{ ...completionBase, tool_choice: "auto", messages: messagesOpenAI },
+						{
+							signal: abortSignal,
+							headers: {
+								"ChatUI-Conversation-ID": conv._id.toString(),
+								"X-use-cache": "false",
+								...(locals?.token ? { Authorization: `Bearer ${locals.token}` } : {}),
+							},
+						}
+					);
+				} else {
+					throw err;
 				}
-			);
+			}
 
 			// If provider header was exposed, notify UI so it can render "via {provider}".
 			if (providerHeader) {
@@ -590,6 +783,45 @@ export async function* runMcpFlow({
 				"[mcp] completion stream closed"
 			);
 
+			// Check for non-OpenAI tool call formats in the accumulated content
+			// This handles models like MiniMax that use XML format instead of tool_calls
+			const modelToolFormat = (targetModel as { toolFormat?: ToolFormat }).toolFormat;
+			if (
+				Object.keys(toolCallState).length === 0 &&
+				modelToolFormat &&
+				modelToolFormat !== "openai" &&
+				hasToolCallMarkers(lastAssistantContent)
+			) {
+				logger.info(
+					{ modelToolFormat, contentLength: lastAssistantContent.length },
+					"[mcp] detected non-OpenAI tool format in content"
+				);
+
+				// Parse non-OpenAI format tool calls from content
+				const parsedCalls = parseToolCalls(
+					lastAssistantContent,
+					targetModel.id ?? targetModel.name,
+					oaTools
+				);
+
+				if (parsedCalls.length > 0) {
+					logger.info(
+						{ callCount: parsedCalls.length, names: parsedCalls.map((c) => c.name) },
+						"[mcp] parsed non-OpenAI tool calls"
+					);
+
+					// Convert to toolCallState format
+					for (let i = 0; i < parsedCalls.length; i++) {
+						const call = parsedCalls[i];
+						toolCallState[i] = {
+							id: call.id,
+							name: call.name,
+							arguments: JSON.stringify(call.arguments),
+						};
+					}
+				}
+			}
+
 			if (Object.keys(toolCallState).length > 0) {
 				// If any streamed call is missing id, perform a quick non-stream retry to recover full tool_calls with ids
 				const missingId = Object.values(toolCallState).some((c) => c?.name && !c?.id);
@@ -651,6 +883,7 @@ export async function* runMcpFlow({
 					calls,
 					mapping: extendedMapping,
 					servers,
+					localToolContext,
 					parseArgs,
 					resolveFileRef,
 					toPrimitive,
@@ -703,6 +936,11 @@ export async function* runMcpFlow({
 		logger.warn({}, "[mcp] exceeded tool-followup loops; falling back");
 	} catch (err) {
 		const msg = String(err ?? "");
+		void logMcpDebug({
+			event: "mcp_error",
+			model: model.id ?? model.name,
+			error: msg,
+		});
 		const isAbort =
 			(abortSignal && abortSignal.aborted) ||
 			msg.includes("AbortError") ||

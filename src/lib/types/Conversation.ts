@@ -24,4 +24,11 @@ export interface Conversation extends Timestamps {
 	assistantId?: Assistant["_id"];
 
 	userAgent?: string;
+
+	// Project folder association (Electron only)
+	projectFolder?: {
+		path: string;
+		name: string;
+		isGitRepo: boolean;
+	};
 }

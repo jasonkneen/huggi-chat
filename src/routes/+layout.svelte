@@ -175,8 +175,10 @@
 	);
 
 	// Show the welcome modal once on first app load
+	// TEMP: Disabled for cluso-inspector debugging
 	let showWelcome = $derived(
-		!$settings.welcomeModalSeen &&
+		false &&
+			!$settings.welcomeModalSeen &&
 			!(page.data.shared === true && page.route.id?.startsWith("/conversation/"))
 	);
 </script>

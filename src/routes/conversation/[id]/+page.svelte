@@ -17,13 +17,15 @@
 	import { fetchMessageUpdates } from "$lib/utils/messageUpdates";
 	import type { v4 } from "uuid";
 	import { useSettingsStore } from "$lib/stores/settings.js";
-	import { enabledServers, startStdioServer, callStdioTool } from "$lib/stores/mcpServers";
+	import { enabledServers, callStdioTool } from "$lib/stores/mcpServers";
 	import type { StdioToolDefinition } from "$lib/utils/messageUpdates";
 	import { browser } from "$app/environment";
 	import {
 		addBackgroundGeneration,
 		removeBackgroundGeneration,
 	} from "$lib/stores/backgroundGenerations";
+	import { workspaces, conversationWorkspaces, allWorkspaces } from "$lib/stores/workspaces";
+	import { thinkingLevel } from "$lib/stores/thinkingLevel";
 	import type { TreeNode, TreeId } from "$lib/utils/tree/tree";
 	import "katex/dist/katex.min.css";
 	import { updateDebouncer } from "$lib/utils/updates.js";
@@ -229,6 +231,12 @@
 				}
 			}
 
+			// Get workspace paths for this conversation
+			const convWorkspaceIds = $conversationWorkspaces[page.params.id] ?? [];
+			const convWorkspacePaths = $allWorkspaces
+				.filter((ws) => convWorkspaceIds.includes(ws.id))
+				.map((ws) => ({ name: ws.name, path: ws.path, isGitRepo: ws.isGitRepo }));
+
 			const messageUpdatesIterator = await fetchMessageUpdates(
 				page.params.id,
 				{
@@ -248,6 +256,8 @@
 							headers: s.headers,
 						})),
 					stdioTools: stdioTools.length > 0 ? stdioTools : undefined,
+					workspaces: convWorkspacePaths.length > 0 ? convWorkspacePaths : undefined,
+					thinkingLevel: $thinkingLevel,
 				},
 				messageUpdatesAbortController.signal
 			).catch((err) => {

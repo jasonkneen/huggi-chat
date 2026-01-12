@@ -192,10 +192,17 @@
 	<!-- Transport Selector (only show in Electron mode) -->
 	{#if isElectron}
 		<div>
-			<span id="transport-type-label" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+			<span
+				id="transport-type-label"
+				class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+			>
 				Transport Type
 			</span>
-			<div class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700" role="group" aria-labelledby="transport-type-label">
+			<div
+				class="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-700"
+				role="group"
+				aria-labelledby="transport-type-label"
+			>
 				<button
 					type="button"
 					onclick={() => (transport = "http")}

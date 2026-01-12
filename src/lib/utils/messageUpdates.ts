@@ -21,6 +21,12 @@ export type StdioToolDefinition = {
 	inputSchema?: Record<string, unknown>;
 };
 
+export type WorkspaceInfo = {
+	name: string;
+	path: string;
+	isGitRepo: boolean;
+};
+
 type MessageUpdateRequestOptions = {
 	base: string;
 	inputs?: string;
@@ -28,13 +34,11 @@ type MessageUpdateRequestOptions = {
 	isRetry: boolean;
 	isContinue?: boolean;
 	files?: MessageFile[];
-	// Optional: pass selected MCP server names (client-side selection)
 	selectedMcpServerNames?: string[];
-	// Optional: pass selected MCP server configs (for custom client-defined servers)
-	// Only HTTP transport servers with a url can be sent to the remote API
 	selectedMcpServers?: Array<{ name: string; url?: string; headers?: KeyValuePair[] }>;
-	// Stdio tools (client-side execution, tool defs passed for LLM to call)
 	stdioTools?: StdioToolDefinition[];
+	workspaces?: WorkspaceInfo[];
+	thinkingLevel?: number;
 };
 export async function fetchMessageUpdates(
 	conversationId: string,
@@ -54,6 +58,8 @@ export async function fetchMessageUpdates(
 		selectedMcpServerNames: opts.selectedMcpServerNames,
 		selectedMcpServers: opts.selectedMcpServers,
 		stdioTools: opts.stdioTools,
+		workspaces: opts.workspaces,
+		thinkingLevel: opts.thinkingLevel,
 	});
 
 	opts.files?.forEach((file) => {

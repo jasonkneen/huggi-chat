@@ -11,6 +11,7 @@ import { getClient } from "$lib/server/mcp/clientPool";
 import { attachFileRefsToArgs, type FileRefResolver } from "./fileRefs";
 import type { Client } from "@modelcontextprotocol/sdk/client";
 import { createStdioToolRequest } from "$lib/server/mcp/stdioToolPending";
+import { executeLocalTool, type LocalToolContext } from "$lib/server/mcp/localTools";
 
 export type Primitive = string | number | boolean;
 
@@ -29,12 +30,14 @@ export interface NormalizedToolCall {
 export interface ExtendedToolMapping extends McpToolMapping {
 	isStdio?: boolean;
 	serverId?: string;
+	isLocal?: boolean;
 }
 
 export interface ExecuteToolCallsParams {
 	calls: NormalizedToolCall[];
 	mapping: Record<string, ExtendedToolMapping>;
 	servers: McpServerConfig[];
+	localToolContext?: LocalToolContext;
 	parseArgs: (raw: unknown) => Record<string, unknown>;
 	resolveFileRef?: FileRefResolver;
 	toPrimitive: (value: unknown) => Primitive | undefined;
@@ -70,6 +73,7 @@ export async function* executeToolCalls({
 	calls,
 	mapping,
 	servers,
+	localToolContext,
 	parseArgs,
 	resolveFileRef,
 	toPrimitive,
@@ -127,9 +131,15 @@ export async function* executeToolCalls({
 		};
 	}
 
-	// Preload clients per distinct server used in this batch
+	// Preload clients per distinct HTTP MCP server used in this batch
 	const distinctServerNames = Array.from(
-		new Set(prepared.map((p) => mapping[p.call.name]?.server).filter(Boolean) as string[])
+		new Set(
+			prepared
+				.map((p) => mapping[p.call.name])
+				.filter((entry) => entry && !entry.isStdio && !entry.isLocal)
+				.map((entry) => entry?.server)
+				.filter(Boolean) as string[]
+		)
 	);
 	const clientMap = new Map<string, Client>();
 	await Promise.all(
@@ -198,6 +208,66 @@ export async function* executeToolCalls({
 				uuid: p.uuid,
 				message,
 			});
+			return;
+		}
+
+		if (mappingEntry.isLocal) {
+			if (!localToolContext) {
+				const message = `Local tool unavailable: ${p.call.name}`;
+				results.push({
+					index,
+					error: message,
+					uuid: p.uuid,
+					paramsClean: p.paramsClean,
+				});
+				updatesQueue.push({
+					type: MessageUpdateType.Tool,
+					subtype: MessageToolUpdateType.Error,
+					uuid: p.uuid,
+					message,
+				});
+				return;
+			}
+			try {
+				const localResult = await executeLocalTool(
+					mappingEntry.tool,
+					p.argsObj,
+					localToolContext
+				);
+				const { annotated } = processToolOutput(localResult.text ?? "");
+				results.push({
+					index,
+					output: annotated,
+					structured: localResult.structured,
+					uuid: p.uuid,
+					paramsClean: p.paramsClean,
+				});
+				updatesQueue.push({
+					type: MessageUpdateType.Tool,
+					subtype: MessageToolUpdateType.Result,
+					uuid: p.uuid,
+					result: {
+						status: ToolResultStatus.Success,
+						call: { name: p.call.name, parameters: p.paramsClean },
+						outputs: [
+							{
+								text: annotated ?? "",
+								structured: localResult.structured,
+							} as unknown as Record<string, unknown>,
+						],
+						display: true,
+					},
+				});
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				results.push({ index, error: message, uuid: p.uuid, paramsClean: p.paramsClean });
+				updatesQueue.push({
+					type: MessageUpdateType.Tool,
+					subtype: MessageToolUpdateType.Error,
+					uuid: p.uuid,
+					message,
+				});
+			}
 			return;
 		}
 

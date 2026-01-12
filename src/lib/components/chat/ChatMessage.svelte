@@ -7,7 +7,8 @@
 	import CopyToClipBoardBtn from "../CopyToClipBoardBtn.svelte";
 	import IconLoading from "../icons/IconLoading.svelte";
 	import CarbonRotate360 from "~icons/carbon/rotate-360";
-	// import CarbonDownload from "~icons/carbon/download";
+	import CarbonArrowUp from "~icons/carbon/arrow-up";
+	import CarbonArrowDown from "~icons/carbon/arrow-down";
 
 	import CarbonPen from "~icons/carbon/pen";
 	import UploadedFile from "./UploadedFile.svelte";
@@ -31,6 +32,7 @@
 		alternatives?: Message["id"][];
 		editMsdgId?: Message["id"] | null;
 		isLast?: boolean;
+		inputTokens?: number;
 		onretry?: (payload: { id: Message["id"]; content?: string }) => void;
 		onshowAlternateMsg?: (payload: { id: Message["id"] }) => void;
 	}
@@ -44,6 +46,7 @@
 		alternatives = [],
 		editMsdgId = $bindable(null),
 		isLast = false,
+		inputTokens = 0,
 		onretry,
 		onshowAlternateMsg,
 	}: Props = $props();
@@ -218,6 +221,12 @@
 	});
 
 	let editMode = $derived(editMsdgId === message.id);
+
+	// Token estimation (~4 chars per token)
+	const estimateTokens = (text: string) => Math.ceil((text?.length || 0) / 4);
+	let messageTokens = $derived(
+		estimateTokens(message.content) + (message.reasoning ? estimateTokens(message.reasoning) : 0)
+	);
 	$effect(() => {
 		if (editMode) {
 			tick();
@@ -387,6 +396,22 @@
 							onshowAlternateMsg={(payload) => onshowAlternateMsg?.(payload)}
 						/>
 					{/if}
+					{#if inputTokens > 0 || messageTokens > 0}
+						<span
+							class="ml-1 flex items-center gap-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-200"
+							title="Input / Output tokens (estimated)"
+						>
+							<span class="flex items-center gap-0.5">
+								<CarbonArrowUp class="size-3 text-blue-500 dark:text-blue-400" />
+								{inputTokens.toLocaleString()}
+							</span>
+							<span class="text-gray-400 dark:text-gray-500">/</span>
+							<span class="flex items-center gap-0.5">
+								<CarbonArrowDown class="size-3 text-green-500 dark:text-green-400" />
+								{messageTokens.toLocaleString()}
+							</span>
+						</span>
+					{/if}
 				{/if}
 			</div>
 		{/if}
@@ -470,6 +495,15 @@
 						{loading}
 						onshowAlternateMsg={(payload) => onshowAlternateMsg?.(payload)}
 					/>
+				{/if}
+				{#if messageTokens > 0}
+					<span
+						class="flex items-center gap-0.5 text-[10px] tabular-nums text-gray-400 dark:text-gray-500"
+						title="Input tokens (estimated)"
+					>
+						<CarbonArrowUp class="size-2.5" />
+						{messageTokens.toLocaleString()}
+					</span>
 				{/if}
 				{#if (alternatives.length > 1 && editMsdgId === null) || (!loading && !editMode)}
 					<button
