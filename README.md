@@ -1,6 +1,7 @@
-# Chat UI
+# "Huggi"
 
-![Chat UI repository thumbnail](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/chat-ui/chat-ui-2026.png)
+<img width="1249" height="886" alt="Screenshot 2026-01-15 at 11 01 29" src="https://github.com/user-attachments/assets/4886dea3-71dc-4265-a354-d079c52236f3" />
+
 
 A chat interface for LLMs. It is a SvelteKit app and it powers the [HuggingChat app on hf.co/chat](https://huggingface.co/chat).
 
@@ -12,14 +13,14 @@ A chat interface for LLMs. It is a SvelteKit app and it powers the [HuggingChat 
 5. [Building](#building)
 
 > [!NOTE]
-> Chat UI only supports OpenAI-compatible APIs via `OPENAI_BASE_URL` and the `/models` endpoint. Provider-specific integrations (legacy `MODELS` env var, GGUF discovery, embeddings, web-search helpers, etc.) are removed, but any service that speaks the OpenAI protocol (llama.cpp server, Ollama, OpenRouter, etc. will work by default).
+> Huggi only supports OpenAI-compatible APIs via `OPENAI_BASE_URL` and the `/models` endpoint. Provider-specific integrations (legacy `MODELS` env var, GGUF discovery, embeddings, web-search helpers, etc.) are removed, but any service that speaks the OpenAI protocol (llama.cpp server, Ollama, OpenRouter, etc. will work by default).
 
 > [!NOTE]
 > The old version is still available on the [legacy branch](https://github.com/huggingface/chat-ui/tree/legacy)
 
 ## Quickstart
 
-Chat UI speaks to OpenAI-compatible APIs only. The fastest way to get running is with the Hugging Face Inference Providers router plus your personal Hugging Face access token.
+Huggi speaks to OpenAI-compatible APIs. The fastest way to get running is with the Hugging Face Inference Providers router plus your personal Hugging Face access token. It can also use Claude code SDK and LMStudio and Olama models
 
 **Step 1 – Create `.env.local`:**
 
@@ -49,14 +50,14 @@ npm install
 npm run dev -- --open
 ```
 
-You now have Chat UI running locally. Open the browser and start chatting.
+You now have Huggi running locally. Open the browser and start chatting.
 
 ## Database Options
 
-Chat history, users, settings, files, and stats all live in MongoDB. You can point Chat UI at any MongoDB 6/7 deployment.
+Chat history, users, settings, files, and stats all live in MongoDB. You can point Huggi at any MongoDB 6/7 deployment.
 
 > [!TIP]
-> For quick local development, you can skip this section. When `MONGODB_URL` is not set, Chat UI falls back to an embedded MongoDB that persists to `./db`.
+> For quick local development, you can skip this section. When `MONGODB_URL` is not set, Huggi falls back to an embedded MongoDB that persists to `./db`.
 
 ### MongoDB Atlas (managed)
 
@@ -79,7 +80,7 @@ Then set `MONGODB_URL=mongodb://localhost:27017` in `.env.local`.
 
 ## Launch
 
-After configuring your environment variables, start Chat UI with:
+After configuring your environment variables, start Huggi with:
 
 ```bash
 npm install
@@ -126,7 +127,7 @@ Models are discovered from `${OPENAI_BASE_URL}/models`, and you can optionally o
 
 ### LLM Router (Optional)
 
-Chat UI can perform server-side smart routing using [katanemo/Arch-Router-1.5B](https://huggingface.co/katanemo/Arch-Router-1.5B) as the routing model without running a separate router service. The UI exposes a virtual model alias called "Omni" (configurable) that, when selected, chooses the best route/model for each message.
+Huggi can perform server-side smart routing using [katanemo/Arch-Router-1.5B](https://huggingface.co/katanemo/Arch-Router-1.5B) as the routing model without running a separate router service. The UI exposes a virtual model alias called "Omni" (configurable) that, when selected, chooses the best route/model for each message.
 
 - Provide a routes policy JSON via `LLM_ROUTER_ROUTES_PATH`. No sample file ships with this branch, so you must point the variable to a JSON array you create yourself (for example, commit one in your project like `config/routes.chat.json`). Each route entry needs `name`, `description`, `primary_model`, and optional `fallback_models`.
 - Configure the Arch router selection endpoint with `LLM_ROUTER_ARCH_BASE_URL` (OpenAI-compatible `/chat/completions`) and `LLM_ROUTER_ARCH_MODEL` (e.g. `router/omni`). The Arch call reuses `OPENAI_API_KEY` for auth.
@@ -134,7 +135,7 @@ Chat UI can perform server-side smart routing using [katanemo/Arch-Router-1.5B](
 - Selection timeout can be tuned via `LLM_ROUTER_ARCH_TIMEOUT_MS` (default 10000).
 - Omni alias configuration: `PUBLIC_LLM_ROUTER_ALIAS_ID` (default `omni`), `PUBLIC_LLM_ROUTER_DISPLAY_NAME` (default `Omni`), and optional `PUBLIC_LLM_ROUTER_LOGO_URL`.
 
-When you select Omni in the UI, Chat UI will:
+When you select Omni in the UI, Huggi will:
 
 - Call the Arch endpoint once (non-streaming) to pick the best route for the last turns.
 - Emit RouterMetadata immediately (route and actual model used) so the UI can display it.
@@ -147,7 +148,7 @@ Tool and multimodal shortcuts:
 
 ### MCP Tools (Optional)
 
-Chat UI can call tools exposed by Model Context Protocol (MCP) servers and feed results back to the model using OpenAI function calling. You can preconfigure trusted servers via env, let users add their own, and optionally have the Omni router auto‑select a tools‑capable model.
+Huggi can call tools exposed by Model Context Protocol (MCP) servers and feed results back to the model using OpenAI function calling. You can preconfigure trusted servers via env, let users add their own, and optionally have the Omni router auto‑select a tools‑capable model.
 
 Configure servers (base list for all users):
 
@@ -166,7 +167,7 @@ MCP_FORWARD_HF_USER_TOKEN=true
 Enable router tool path (Omni):
 
 - Set `LLM_ROUTER_ENABLE_TOOLS=true` and choose a tools‑capable target with `LLM_ROUTER_TOOLS_MODEL=<model id or name>`.
-- The target must support OpenAI tools/function calling. Chat UI surfaces a “tools” badge on models that advertise this; you can also force‑enable it per‑model in settings (see below).
+- The target must support OpenAI tools/function calling. Huggi surfaces a “tools” badge on models that advertise this; you can also force‑enable it per‑model in settings (see below).
 
 Use tools in the UI:
 
