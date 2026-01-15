@@ -42,6 +42,8 @@
 	import IconClose from "~icons/carbon/close";
 	import IconChevronDown from "~icons/carbon/chevron-down";
 	import IconChevronRight from "~icons/carbon/chevron-right";
+	import IconChat from "~icons/carbon/chat";
+	import IconCode from "~icons/carbon/code";
 
 	const publicConfig = usePublicConfig();
 	const client = useAPIClient();
@@ -84,15 +86,26 @@
 		new Date().setMonth(new Date().getMonth() - 1),
 	];
 
+	// Electron detection - must be defined before derived values that use it
+	const isElectron = browser && !!(window as any).electronAPI;
+
+	// Filter out conversations that are assigned to a workspace (Electron only)
+	// These will appear in the Code tab under their workspace instead
+	let unassignedConversations = $derived(
+		isElectron
+			? conversations.filter((c) => !$conversationWorkspaces[c.id.toString()])
+			: conversations
+	);
+
 	let groupedConversations = $derived({
-		today: conversations.filter(({ updatedAt }) => updatedAt.getTime() > dateRanges[0]),
-		week: conversations.filter(
+		today: unassignedConversations.filter(({ updatedAt }) => updatedAt.getTime() > dateRanges[0]),
+		week: unassignedConversations.filter(
 			({ updatedAt }) => updatedAt.getTime() > dateRanges[1] && updatedAt.getTime() < dateRanges[0]
 		),
-		month: conversations.filter(
+		month: unassignedConversations.filter(
 			({ updatedAt }) => updatedAt.getTime() > dateRanges[2] && updatedAt.getTime() < dateRanges[1]
 		),
-		older: conversations.filter(({ updatedAt }) => updatedAt.getTime() < dateRanges[2]),
+		older: unassignedConversations.filter(({ updatedAt }) => updatedAt.getTime() < dateRanges[2]),
 	});
 
 	const nModels: number = page.data.models.filter((el: Model) => !el.unlisted).length;
@@ -130,7 +143,8 @@
 	let workspaceSectionCollapsed = $state(false);
 	let chatsSectionCollapsed = $state(false);
 
-	const isElectron = browser && !!(window as any).electronAPI;
+	// Tab state for Electron: "chat" or "code"
+	let activeTab: "chat" | "code" = $state("chat");
 
 	if (browser) {
 		unsubscribeTheme = subscribeToTheme(({ isDark: nextIsDark }) => {
@@ -181,84 +195,91 @@
 <div
 	class="scrollbar-custom flex min-h-0 flex-col gap-1 overflow-y-auto rounded-r-xl border border-l-0 border-gray-100 px-3 py-2 dark:border-transparent md:bg-gradient-to-l md:from-gray-50 md:dark:from-gray-800/30"
 >
+	<!-- Tab switcher: Only shown in Electron -->
 	{#if isElectron}
-		<div class="flex w-full items-center gap-1.5 px-1 py-1">
+		<div class="mb-2 flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
 			<button
-				onclick={() => (workspaceSectionCollapsed = !workspaceSectionCollapsed)}
-				class="flex flex-1 items-center gap-1.5 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+				onclick={() => (activeTab = "chat")}
+				class="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors
+					{activeTab === 'chat'
+					? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+					: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
+				aria-current={activeTab === "chat" ? "page" : undefined}
 			>
-				{#if workspaceSectionCollapsed}
-					<IconChevronRight class="size-3 flex-shrink-0" />
-				{:else}
-					<IconChevronDown class="size-3 flex-shrink-0" />
-				{/if}
-				<span>Workspaces</span>
-				<span class="text-xs text-gray-400">{$allWorkspaces.length}</span>
+				<IconChat class="size-4" />
+				Chat
 			</button>
 			<button
-				onclick={handleAddWorkspace}
-				class="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-600 dark:hover:text-gray-300"
-				title="Add workspace folder"
+				onclick={() => (activeTab = "code")}
+				class="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors
+					{activeTab === 'code'
+					? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+					: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
+				aria-current={activeTab === "code" ? "page" : undefined}
 			>
-				<IconAdd class="size-3.5" />
+				<IconCode class="size-4" />
+				Code
 			</button>
 		</div>
+	{/if}
 
-		{#if !workspaceSectionCollapsed}
-			<div class="flex flex-col gap-0.5 pb-2">
-				{#if $allWorkspaces.length === 0}
-					<div class="px-2 py-1 text-xs text-gray-400 dark:text-gray-500">
-						No workspaces yet. Click + to add a folder.
-					</div>
-				{:else}
-					{#each $allWorkspaces as ws (ws.id)}
-						{@const wsConvIds = Object.entries($conversationWorkspaces)
-							.filter(([, wsIds]) => wsIds.includes(ws.id))
-							.map(([convId]) => convId)}
-						{@const wsConvs = conversations.filter((c) => wsConvIds.includes(c.id.toString()))}
-						<div class="flex flex-col">
-							<div
-								class="group flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700
-									{$activeWorkspace?.id === ws.id
-									? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-									: 'text-gray-600 dark:text-gray-400'}"
+	<!-- CODE TAB: Workspaces (Electron only) -->
+	{#if isElectron && activeTab === "code"}
+		<div class="flex flex-col gap-0.5">
+			{#if $allWorkspaces.length === 0}
+				<div class="px-2 py-4 text-center text-sm text-gray-400 dark:text-gray-500">
+					No workspace selected
+				</div>
+			{:else}
+				{#each $allWorkspaces as ws (ws.id)}
+					{@const wsConvIds = Object.entries($conversationWorkspaces)
+						.filter(([, wsId]) => wsId === ws.id)
+						.map(([convId]) => convId)}
+					{@const wsConvs = conversations.filter((c) => wsConvIds.includes(c.id.toString()))}
+					<div class="flex flex-col">
+						<!-- Workspace name header -->
+						<div
+							class="group flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700
+								{$activeWorkspace?.id === ws.id
+								? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+								: 'text-gray-600 dark:text-gray-400'}"
+						>
+							<button
+								onclick={() => workspaces.toggleWorkspaceCollapsed(ws.id)}
+								class="flex-shrink-0 p-0.5"
 							>
-								<button
-									onclick={() => workspaces.toggleWorkspaceCollapsed(ws.id)}
-									class="flex-shrink-0 p-0.5"
-								>
-									{#if ws.isCollapsed}
-										<IconChevronRight class="size-3" />
-									{:else}
-										<IconChevronDown class="size-3" />
-									{/if}
-								</button>
-								<button
-									onclick={() =>
-										handleSelectWorkspace($activeWorkspace?.id === ws.id ? null : ws.id)}
-									class="flex flex-1 items-center gap-1.5 text-left"
-								>
-									{#if $activeWorkspace?.id === ws.id}
-										<IconFolderOpen class="size-4 flex-shrink-0" />
-									{:else}
-										<IconFolder class="size-4 flex-shrink-0" />
-									{/if}
-									<span class="flex-1 truncate">{ws.name}</span>
-									{#if wsConvs.length > 0}
-										<span class="text-xs text-gray-400">{wsConvs.length}</span>
-									{/if}
-								</button>
-								<button
-									onclick={() => handleRemoveWorkspace(ws.id)}
-									class="hidden rounded p-0.5 text-gray-400 group-hover:block hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-600 dark:hover:text-gray-300"
-									title="Remove workspace"
-								>
-									<IconClose class="size-3" />
-								</button>
-							</div>
-							{#if !ws.isCollapsed && wsConvs.length > 0}
-								<div
-									class="ml-5 flex flex-col gap-0.5 border-l border-l-[0.5px] border-gray-200 pl-2 dark:border-gray-500"
+								{#if ws.isCollapsed}
+									<IconChevronRight class="size-3" />
+								{:else}
+									<IconChevronDown class="size-3" />
+								{/if}
+							</button>
+							<button
+								onclick={() =>
+									handleSelectWorkspace($activeWorkspace?.id === ws.id ? null : ws.id)}
+								class="flex flex-1 items-center gap-1.5 text-left"
+							>
+								{#if $activeWorkspace?.id === ws.id}
+									<IconFolderOpen class="size-4 flex-shrink-0" />
+								{:else}
+									<IconFolder class="size-4 flex-shrink-0" />
+								{/if}
+								<span class="flex-1 truncate">{ws.name}</span>
+								{#if wsConvs.length > 0}
+									<span class="text-xs text-gray-400">({wsConvs.length})</span>
+								{/if}
+							</button>
+							<button
+								onclick={() => handleRemoveWorkspace(ws.id)}
+								class="hidden rounded p-0.5 text-gray-400 group-hover:block hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-600 dark:hover:text-gray-300"
+								title="Remove workspace"
+							>
+								<IconClose class="size-3" />
+							</button>
+						</div>
+						{#if !ws.isCollapsed && wsConvs.length > 0}
+							<div
+								class="ml-5 flex flex-col gap-0.5 border-l border-l-[0.5px] border-gray-200 pl-2 dark:border-gray-500"
 								>
 									{#each wsConvs as conv}
 										<NavConversationItem {conv} {oneditConversationTitle} {ondeleteConversation} />
@@ -268,41 +289,43 @@
 						</div>
 					{/each}
 				{/if}
-			</div>
-		{/if}
+		</div>
 	{/if}
 
-	<div class="flex w-full items-center gap-1.5 px-1 py-1">
-		<button
-			onclick={() => (chatsSectionCollapsed = !chatsSectionCollapsed)}
-			class="flex flex-1 items-center gap-1.5 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-		>
-			{#if chatsSectionCollapsed}
-				<IconChevronRight class="size-3 flex-shrink-0" />
-			{:else}
-				<IconChevronDown class="size-3 flex-shrink-0" />
-			{/if}
-			<span>Chats</span>
-			<span class="text-xs text-gray-400">{conversations.length}</span>
-		</button>
-	</div>
-
-	{#if !chatsSectionCollapsed}
-		<div class="flex flex-col gap-0.5 text-[.9rem]">
-			{#each Object.entries(groupedConversations) as [group, convs]}
-				{#if convs.length}
-					<h4 class="mb-1.5 mt-3 pl-0.5 text-xs text-gray-400 first:mt-0 dark:text-gray-500">
-						{titles[group]}
-					</h4>
-					{#each convs as conv}
-						<NavConversationItem {conv} {oneditConversationTitle} {ondeleteConversation} />
-					{/each}
+	<!-- CHAT TAB: Conversations (always shown on web, shown in Chat tab on Electron) -->
+	{#if !isElectron || activeTab === "chat"}
+		<div class="flex w-full items-center gap-1.5 px-1 py-1">
+			<button
+				onclick={() => (chatsSectionCollapsed = !chatsSectionCollapsed)}
+				class="flex flex-1 items-center gap-1.5 text-left text-xs font-medium uppercase tracking-wide text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+			>
+				{#if chatsSectionCollapsed}
+					<IconChevronRight class="size-3 flex-shrink-0" />
+				{:else}
+					<IconChevronDown class="size-3 flex-shrink-0" />
 				{/if}
-			{/each}
-			{#if hasMore}
-				<InfiniteScroll onvisible={handleVisible} />
-			{/if}
+				<span>Chats</span>
+				<span class="text-xs text-gray-400">{conversations.length}</span>
+			</button>
 		</div>
+
+		{#if !chatsSectionCollapsed}
+			<div class="flex flex-col gap-0.5 text-[.9rem]">
+				{#each Object.entries(groupedConversations) as [group, convs]}
+					{#if convs.length}
+						<h4 class="mb-1.5 mt-3 pl-0.5 text-xs text-gray-400 first:mt-0 dark:text-gray-500">
+							{titles[group]}
+						</h4>
+						{#each convs as conv}
+							<NavConversationItem {conv} {oneditConversationTitle} {ondeleteConversation} />
+						{/each}
+					{/if}
+				{/each}
+				{#if hasMore}
+					<InfiniteScroll onvisible={handleVisible} />
+				{/if}
+			</div>
+		{/if}
 	{/if}
 </div>
 

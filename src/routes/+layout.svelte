@@ -25,6 +25,7 @@
 	import ToolDebugger from "$lib/components/chat/ToolDebugger.svelte";
 	import { toolDebuggerOpen } from "$lib/stores/toolDebugger";
 	import { requireAuthUser } from "$lib/utils/auth";
+	import { autoConnectProviders } from "$lib/utils/autoConnectProviders";
 
 	let { data = $bindable(), children } = $props();
 
@@ -53,6 +54,9 @@
 				navWidth = parsed;
 			}
 		}
+
+		// Auto-connect to enabled local providers (Ollama, LM Studio)
+		autoConnectProviders();
 	});
 
 	function startResize(e: MouseEvent) {

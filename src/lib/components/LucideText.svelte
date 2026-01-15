@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { parseLucideTags, type ParsedContent } from '@yourusername/lucide-emoji/sanitizer'
+  import { parseLucideTags, type ParsedContent } from 'lucide-emoji/sanitizer'
   import Icon from '@iconify/svelte'
 
   interface Props {

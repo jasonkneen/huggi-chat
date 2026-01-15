@@ -17,8 +17,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		logger.info({ toolName, args }, "[tool-debug] Executing tool");
 
 		// Check if it's a local tool
-		if (toolName.startsWith("local_") || ["list_files", "read_file", "write_file"].includes(toolName)) {
-			const workspaces = (locals as { workspaces?: Array<{ name: string; path: string; isGitRepo: boolean }> })?.workspaces ?? [];
+		const localToolNames = ["local_list_tools", "list_files", "read_file", "write_file", "run_command", "search_code"];
+		if (localToolNames.includes(toolName)) {
+			const rawWorkspaces = (locals as { workspaces?: Array<{ name: string; path: string; isGitRepo: boolean }> })?.workspaces ?? [];
+			// Use default workspace if none provided
+			const workspaces = rawWorkspaces.length > 0 ? rawWorkspaces : [{ name: "workspace", path: process.cwd(), isGitRepo: false }];
 
 			// Build tool catalog from all available tools
 			const toolCatalog: Array<{ name: string; description?: string; server?: string; isLocal?: boolean }> = [];
@@ -28,7 +31,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				{ name: "local_list_tools", description: "List available tools and their servers", server: "local", isLocal: true },
 				{ name: "list_files", description: "List files and folders in workspace", server: "local", isLocal: true },
 				{ name: "read_file", description: "Read file from workspace", server: "local", isLocal: true },
-				{ name: "write_file", description: "Write file to workspace", server: "local", isLocal: true }
+				{ name: "write_file", description: "Write file to workspace", server: "local", isLocal: true },
+				{ name: "run_command", description: "Execute shell commands", server: "local", isLocal: true },
+				{ name: "search_code", description: "Search code with ast-grep or ripgrep", server: "local", isLocal: true }
 			);
 
 			// Add MCP tools from servers

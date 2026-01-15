@@ -35,9 +35,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		error(429, "You have reached the maximum number of conversations. Delete some to continue.");
 	}
 
-	const model = models.find((m) => (m.id || m.name) === values.model);
+	const isLocalModel =
+		values.model.startsWith("ollama/") || values.model.startsWith("lmstudio/");
+	const model = isLocalModel ? null : models.find((m) => (m.id || m.name) === values.model);
 
-	if (!model) {
+	if (!model && !isLocalModel) {
 		error(400, "Invalid model");
 	}
 
@@ -72,11 +74,11 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 		values.preprompt = conversation.preprompt;
 	}
 
-	if (model.unlisted) {
+	if (model?.unlisted) {
 		error(400, "Can't start a conversation with an unlisted model");
 	}
 
-	// use provided preprompt or model preprompt
+	// use provided preprompt or model preprompt (local models don't have server-side preprompts)
 	values.preprompt ??= model?.preprompt ?? "";
 
 	if (messages && messages.length > 0 && messages[0].from === "system") {

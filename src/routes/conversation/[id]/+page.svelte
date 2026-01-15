@@ -32,6 +32,9 @@
 	import SubscribeModal from "$lib/components/SubscribeModal.svelte";
 	import { loading } from "$lib/stores/loading.js";
 	import { requireAuthUser } from "$lib/utils/auth.js";
+	import { localModels } from "$lib/stores/localModels";
+	import type { Model } from "$lib/types/Model";
+	import { localToModel } from "$lib/utils/models";
 
 	let { data = $bindable() } = $props();
 
@@ -44,6 +47,20 @@
 	let conversations = $state(data.conversations);
 	$effect(() => {
 		conversations = data.conversations;
+	});
+
+	// Merge server models with local models
+	let allModels = $derived.by(() => {
+		const serverModels = data.models || [];
+		const ollamaModels = $localModels.ollama.map(localToModel);
+		const lmstudioModels = $localModels.lmstudio.map(localToModel);
+
+		// Avoid duplicates by id
+		const existingIds = new Set(serverModels.map((m: Model) => m.id));
+		const uniqueOllama = ollamaModels.filter((m) => !existingIds.has(m.id));
+		const uniqueLmstudio = lmstudioModels.filter((m) => !existingIds.has(m.id));
+
+		return [...serverModels, ...uniqueOllama, ...uniqueLmstudio];
 	});
 
 	function createMessagesPath<T>(messages: TreeNode<T>[], msgId?: TreeId): TreeNode<T>[] {
@@ -321,8 +338,14 @@
 
 				if (update.type === MessageUpdateType.Stream && !$settings.disableStream) {
 					buffer += update.token;
-					// Check if this is the first update or if enough time has passed
-					if (currentTime.getTime() - lastUpdateTime.getTime() > updateDebouncer.maxUpdateTime) {
+					// Flush buffer based on time OR character count
+					// Character limit (50 chars) prevents large text dumps from fast-streaming
+					// local models (Ollama/LM Studio) which can send 500+ chars in 50ms
+					const timeExceeded =
+						currentTime.getTime() - lastUpdateTime.getTime() > updateDebouncer.maxUpdateTime;
+					const bufferTooLarge = buffer.length >= 50;
+
+					if (timeExceeded || bufferTooLarge) {
 						messageToWriteTo.content += buffer;
 						buffer = "";
 						lastUpdateTime = currentTime;
@@ -591,8 +614,8 @@
 	onretry={onRetry}
 	onshowAlternateMsg={onShowAlternateMsg}
 	onstop={stopGeneration}
-	models={data.models}
-	currentModel={findCurrentModel(data.models, data.oldModels, data.model)}
+	models={allModels}
+	currentModel={findCurrentModel(allModels, data.oldModels, data.model)}
 />
 
 {#if showSubscribeModal}

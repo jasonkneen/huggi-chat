@@ -11,8 +11,14 @@
 
 	let { models, currentModel }: Props = $props();
 
+	// Check if model is valid - either in models list or a valid local model pattern
+	const isLocalModelId = (id: string) =>
+		id.startsWith("ollama/") || id.startsWith("lmstudio/");
+
 	let selectedModelId = $state(
-		models.map((m) => m.id).includes(currentModel.id) ? currentModel.id : models[0].id
+		models.map((m) => m.id).includes(currentModel.id) || isLocalModelId(currentModel.id)
+			? currentModel.id
+			: models[0].id
 	);
 
 	async function handleModelChange() {

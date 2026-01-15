@@ -2,22 +2,15 @@
 	import { onMount } from "svelte";
 	import IconLightbulb from "~icons/lucide/lightbulb";
 
-	interface VibrancyOptions {
-		theme: string; // 'light', 'dark', or '#rrggbbaa'
-		effect: string; // 'acrylic' or 'blur'
-		disableOnBlur: boolean;
-	}
-
 	interface ElectronAPI {
 		platform: string;
 		getAppearanceSettings: () => Promise<{
-			vibrancy?: VibrancyOptions;
+			vibrancy?: string;
 			opacity?: number;
 			blur?: number;
 			saturation?: number;
 		} | null>;
-		setVibrancy: (options: VibrancyOptions) => Promise<{ success: boolean }>;
-		setBackgroundMaterial: (material: string) => Promise<{ success: boolean }>;
+		setVibrancy: (type: string) => Promise<{ success: boolean }>;
 		setOpacity: (opacity: number) => Promise<{ success: boolean; opacity: number }>;
 		setBlur: (opts: { blur: number; saturation: number }) => Promise<void>;
 	}
@@ -32,95 +25,62 @@
 	let isMac = false;
 	let isWindows = false;
 	let settings = {
-		vibrancy: {
-			theme: "sidebar", // Default to sidebar for macOS (adapts to light/dark mode)
-			effect: "acrylic",
-			disableOnBlur: false,
-		} as VibrancyOptions,
+		vibrancy: "fullscreen-ui",
 		opacity: 1.0,
 		blur: 40,
 		saturation: 180,
 	};
 
-	// macOS vibrancy type options
-	const macThemeOptions = [
+	const vibrancyOptions = [
+		{ value: "appearance-based", label: "Appearance Based" },
 		{ value: "light", label: "Light" },
 		{ value: "dark", label: "Dark" },
-		{ value: "sidebar", label: "Sidebar" },
-		{ value: "fullscreen-ui", label: "Fullscreen UI" },
-		{ value: "header", label: "Header" },
 		{ value: "titlebar", label: "Titlebar" },
+		{ value: "selection", label: "Selection" },
 		{ value: "menu", label: "Menu" },
 		{ value: "popover", label: "Popover" },
-		{ value: "under-window", label: "Under Window" },
+		{ value: "sidebar", label: "Sidebar" },
+		{ value: "medium-light", label: "Medium Light" },
+		{ value: "ultra-dark", label: "Ultra Dark" },
+		{ value: "header", label: "Header" },
+		{ value: "sheet", label: "Sheet" },
+		{ value: "window", label: "Window" },
 		{ value: "hud", label: "HUD" },
-	];
-
-	// Windows electron-acrylic-window options
-	const winThemeOptions = [
-		{ value: "light", label: "Light" },
-		{ value: "dark", label: "Dark" },
-		{ value: "#00000080", label: "Transparent Black" },
-		{ value: "#ffffff80", label: "Transparent White" },
-	];
-
-	// Reactive theme options based on platform
-	$: themeOptions = isMac ? macThemeOptions : winThemeOptions;
-
-	// Effect options (Windows only - macOS uses system vibrancy)
-	const effectOptions = [
-		{ value: "acrylic", label: "Acrylic" },
-		{ value: "blur", label: "Blur" },
+		{ value: "fullscreen-ui", label: "Fullscreen UI" },
+		{ value: "tooltip", label: "Tooltip" },
+		{ value: "content", label: "Content" },
+		{ value: "under-window", label: "Under Window" },
+		{ value: "under-page", label: "Under Page" },
 	];
 
 	onMount(async () => {
-		if (typeof window !== "undefined" && window.electronAPI) {
+		const electronAPI = getElectronAPI();
+		if (typeof window !== "undefined" && electronAPI) {
 			isElectron = true;
-			isMac = window.electronAPI.platform === "darwin";
-			isWindows = window.electronAPI.platform === "win32";
+			isMac = electronAPI.platform === "darwin";
+			isWindows = electronAPI.platform === "win32";
 
 			// Load current settings
-			const currentSettings = await window.electronAPI.getAppearanceSettings();
+			const currentSettings = await electronAPI.getAppearanceSettings();
 			if (currentSettings) {
 				settings = { ...settings, ...currentSettings };
 			}
 		}
 	});
 
-	async function updateVibrancyTheme(event: Event) {
+	async function updateVibrancy(event: Event) {
 		const target = event.target as HTMLSelectElement;
-		const theme = target.value;
-		const newVibrancy = { ...settings.vibrancy, theme };
-		const result = await window.electronAPI?.setVibrancy(newVibrancy);
+		const type = target.value;
+		const result = await getElectronAPI()?.setVibrancy(type);
 		if (result?.success) {
-			settings.vibrancy = newVibrancy;
-		}
-	}
-
-	async function updateVibrancyEffect(event: Event) {
-		const target = event.target as HTMLSelectElement;
-		const effect = target.value;
-		const newVibrancy = { ...settings.vibrancy, effect };
-		const result = await window.electronAPI?.setVibrancy(newVibrancy);
-		if (result?.success) {
-			settings.vibrancy = newVibrancy;
-		}
-	}
-
-	async function updateDisableOnBlur(event: Event) {
-		const target = event.target as HTMLInputElement;
-		const disableOnBlur = target.checked;
-		const newVibrancy = { ...settings.vibrancy, disableOnBlur };
-		const result = await window.electronAPI?.setVibrancy(newVibrancy);
-		if (result?.success) {
-			settings.vibrancy = newVibrancy;
+			settings.vibrancy = type;
 		}
 	}
 
 	async function updateOpacity(event: Event) {
 		const target = event.target as HTMLInputElement;
 		const opacity = parseFloat(target.value);
-		const result = await window.electronAPI?.setOpacity(opacity);
+		const result = await getElectronAPI()?.setOpacity(opacity);
 		if (result?.success) {
 			settings.opacity = result.opacity;
 		}
@@ -129,14 +89,14 @@
 	async function updateBlur(event: Event) {
 		const target = event.target as HTMLInputElement;
 		const blur = parseInt(target.value);
-		await window.electronAPI?.setBlur({ blur, saturation: settings.saturation });
+		await getElectronAPI()?.setBlur({ blur, saturation: settings.saturation });
 		settings.blur = blur;
 	}
 
 	async function updateSaturation(event: Event) {
 		const target = event.target as HTMLInputElement;
 		const saturation = parseInt(target.value);
-		await window.electronAPI?.setBlur({ blur: settings.blur, saturation });
+		await getElectronAPI()?.setBlur({ blur: settings.blur, saturation });
 		settings.saturation = saturation;
 	}
 </script>
@@ -155,67 +115,32 @@
 				</p>
 			</div>
 
-			<div class="flex items-start justify-between py-3">
-				<div class="flex flex-col gap-0.5">
-					<label
-						for="vibrancyTheme"
-						class="text-[13px] font-medium text-gray-800 dark:text-gray-200"
-					>
-						{isMac ? 'Material Style' : 'Window Theme'}
-					</label>
-					<p class="text-[11px] text-gray-500 dark:text-gray-400">
-						{isMac ? 'Apple\'s blur/tint preset for entire window' : 'Color scheme for window'}
-					</p>
-				</div>
-				<select
-					id="vibrancyTheme"
-					on:change={updateVibrancyTheme}
-					bind:value={settings.vibrancy.theme}
-					class="min-w-[120px] rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-				>
-					{#each themeOptions as option}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</div>
-
-			<!-- Effect Type (Windows only) -->
-			{#if isWindows}
+			<!-- Vibrancy (macOS only) -->
+			{#if isMac}
 				<div class="flex items-start justify-between py-3">
-					<div>
+					<div class="flex flex-col gap-0.5">
 						<label
-							for="vibrancyEffect"
+							for="vibrancy"
 							class="text-[13px] font-medium text-gray-800 dark:text-gray-200"
 						>
-							Effect Type
+							Vibrancy Effect
 						</label>
+						<p class="text-[11px] text-gray-500 dark:text-gray-400">
+							Apple's blur/tint preset for entire window
+						</p>
 					</div>
 					<select
-						id="vibrancyEffect"
-						on:change={updateVibrancyEffect}
-						bind:value={settings.vibrancy.effect}
-						class="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+						id="vibrancy"
+						on:change={updateVibrancy}
+						bind:value={settings.vibrancy}
+						class="min-w-[140px] rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
 					>
-						{#each effectOptions as option}
+						{#each vibrancyOptions as option}
 							<option value={option.value}>{option.label}</option>
 						{/each}
 					</select>
 				</div>
 			{/if}
-
-			<!-- Disable on Blur Toggle -->
-			<div class="flex items-center justify-between py-3">
-				<label for="disableOnBlur" class="text-[13px] font-medium text-gray-800 dark:text-gray-200">
-					Disable effect when window loses focus
-				</label>
-				<input
-					id="disableOnBlur"
-					type="checkbox"
-					bind:checked={settings.vibrancy.disableOnBlur}
-					on:change={updateDisableOnBlur}
-					class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-				/>
-			</div>
 
 			<!-- Opacity -->
 			<div class="py-3">

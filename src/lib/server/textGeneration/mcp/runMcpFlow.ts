@@ -28,12 +28,31 @@ import { makeImageProcessor } from "$lib/server/endpoints/images";
 import { logger } from "$lib/server/logger";
 import { logMcpDebug } from "$lib/server/mcp/debugLog";
 import { buildLocalToolContext, getLocalToolsForWorkspaces } from "$lib/server/mcp/localTools";
+import { isLocalModelId, getLocalProvider, getLocalModelName } from "$lib/server/localModels";
 import {
 	parseToolCalls,
 	hasToolCallMarkers,
 	type ToolFormat,
 	type ToolFormatConfig,
 } from "./toolFormatParser";
+
+// Cache tool preprompts per conversation for LM Studio cache compatibility
+// Limited to 100 conversations to prevent memory leaks
+const toolPrepromptCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 100;
+
+function cleanupPrepromptCache() {
+	if (toolPrepromptCache.size > MAX_CACHE_SIZE) {
+		// Remove oldest entries (first ones in Map iteration order)
+		const toDelete = toolPrepromptCache.size - MAX_CACHE_SIZE;
+		let deleted = 0;
+		for (const key of toolPrepromptCache.keys()) {
+			if (deleted >= toDelete) break;
+			toolPrepromptCache.delete(key);
+			deleted++;
+		}
+	}
+}
 
 export interface StdioToolDefinition {
 	serverId: string;
@@ -144,11 +163,16 @@ export async function* runMcpFlow({
 	const stdioToolDefs =
 		(locals as unknown as { mcp?: { stdioTools?: StdioToolDefinition[] } })?.mcp?.stdioTools ?? [];
 	const hasStdioTools = stdioToolDefs.length > 0;
-	const workspaces = (
+
+	// Get workspaces from locals, with fallback to default workspace for local tools
+	const rawWorkspaces = (
 		locals as unknown as {
 			workspaces?: Array<{ name: string; path: string; isGitRepo: boolean }>;
 		}
 	)?.workspaces;
+	const workspaces = rawWorkspaces && rawWorkspaces.length > 0
+		? rawWorkspaces
+		: [{ name: "workspace", path: process.cwd(), isGitRepo: false }];
 	const localToolContext = buildLocalToolContext(workspaces);
 	const { tools: localTools, mapping: localMapping } = getLocalToolsForWorkspaces(workspaces);
 	const hasLocalTools = localTools.length > 0;
@@ -413,7 +437,20 @@ export async function* runMcpFlow({
 		extendedMapping[name] = { ...entry, isLocal: true };
 	}
 
-	const oaTools = [...httpTools, ...stdioTools, ...localTools];
+	// Sort tools alphabetically for LM Studio cache compatibility
+	const oaTools = [...httpTools, ...stdioTools, ...localTools].sort((a, b) =>
+		a.function.name.localeCompare(b.function.name)
+	);
+
+	// DEBUG: Log tool names to verify local tools are loaded
+	logger.info(
+		{
+			localToolNames: localTools.map((t) => t.function.name),
+			workspaceCount: workspaces?.length ?? 0,
+			workspacePaths: workspaces?.map((w) => w.path) ?? [],
+		},
+		"[mcp] LOCAL TOOLS DEBUG"
+	);
 
 	try {
 		void logMcpDebug({
@@ -462,9 +499,24 @@ export async function* runMcpFlow({
 			return res;
 		};
 
+		// Determine baseURL based on model provider (local vs cloud)
+		const rawModelId = targetModel.id ?? targetModel.name;
+		const localProvider = getLocalProvider(rawModelId);
+		let apiBaseUrl = config.OPENAI_BASE_URL;
+		let apiKey = config.OPENAI_API_KEY || config.HF_TOKEN || "sk-";
+
+		if (localProvider) {
+			// Use local provider endpoint (Ollama or LM Studio)
+			apiBaseUrl = localProvider === "ollama"
+				? (process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1")
+				: (process.env.LMSTUDIO_BASE_URL || "http://localhost:1234/v1");
+			apiKey = "not-needed";
+			logger.info({ localProvider, apiBaseUrl, rawModelId }, "[mcp] Using local provider endpoint");
+		}
+
 		const openai = new OpenAI({
-			apiKey: config.OPENAI_API_KEY || config.HF_TOKEN || "sk-",
-			baseURL: config.OPENAI_BASE_URL,
+			apiKey,
+			baseURL: apiBaseUrl,
 			fetch: captureProviderFetch,
 			defaultHeaders: {
 				// Bill to organization if configured (HuggingChat only)
@@ -523,7 +575,19 @@ export async function* runMcpFlow({
 			};
 		});
 		localToolContext.toolCatalog = toolCatalog;
-		const toolPreprompt = buildToolPreprompt(oaTools, toolServerMapping, workspaces);
+
+		// Use cached tool preprompt for conversation to ensure LM Studio cache hits
+		const convId = conv._id.toString();
+		let toolPreprompt = toolPrepromptCache.get(convId);
+		if (!toolPreprompt) {
+			toolPreprompt = buildToolPreprompt(oaTools, toolServerMapping, workspaces);
+			toolPrepromptCache.set(convId, toolPreprompt);
+			cleanupPrepromptCache();
+			logger.info({ convId, cached: false }, "[mcp] Generated new tool preprompt");
+		} else {
+			logger.info({ convId, cached: true }, "[mcp] Using cached tool preprompt");
+		}
+
 		const prepromptPieces: string[] = [];
 		if (toolPreprompt.trim().length > 0) {
 			prepromptPieces.push(toolPreprompt);
@@ -532,6 +596,16 @@ export async function* runMcpFlow({
 			prepromptPieces.push(preprompt);
 		}
 		const mergedPreprompt = prepromptPieces.join("\n\n");
+
+		// DEBUG: Log the system prompt being sent
+		logger.info(
+			{
+				toolPrepromptLength: toolPreprompt.length,
+				mergedPrepromptLength: mergedPreprompt.length,
+				toolPrepromptPreview: toolPreprompt.slice(0, 500),
+			},
+			"[mcp] SYSTEM PROMPT DEBUG"
+		);
 		const hasSystemMessage = messagesOpenAI.length > 0 && messagesOpenAI[0]?.role === "system";
 		if (hasSystemMessage) {
 			if (mergedPreprompt.length > 0) {
@@ -542,6 +616,18 @@ export async function* runMcpFlow({
 		} else if (mergedPreprompt.length > 0) {
 			messagesOpenAI = [{ role: "system", content: mergedPreprompt }, ...messagesOpenAI];
 		}
+
+		// Log final system prompt hash for cache debugging
+		const finalSystemContent = messagesOpenAI[0]?.role === "system"
+			? (typeof messagesOpenAI[0].content === "string" ? messagesOpenAI[0].content : "")
+			: "";
+		const systemPromptHash = finalSystemContent.length > 0
+			? Buffer.from(finalSystemContent).toString("base64").slice(0, 20)
+			: "none";
+		logger.info(
+			{ convId, systemPromptHash, systemPromptLength: finalSystemContent.length },
+			"[mcp] Final system prompt hash (should be same each turn)"
+		);
 
 		// Work around servers that reject `system` role
 		if (
@@ -570,8 +656,17 @@ export async function* runMcpFlow({
 					? (parameters.stop as string[])
 					: undefined;
 
+		// Use model name without provider prefix for API calls
+		const modelIdForApi = getLocalModelName(rawModelId);
+		logger.info({ rawModelId, modelIdForApi, localProvider }, "[mcp] Model ID for API");
+
+		// Log tools hash for cache debugging
+		const toolsJson = JSON.stringify(oaTools);
+		const toolsHash = Buffer.from(toolsJson).toString("base64").slice(0, 20);
+		logger.info({ toolsHash, toolsLength: toolsJson.length }, "[mcp] Tools JSON hash (should be same each turn)");
+
 		const completionBase: Omit<ChatCompletionCreateParamsStreaming, "messages"> = {
-			model: targetModel.id ?? targetModel.name,
+			model: modelIdForApi,
 			stream: true,
 			temperature: typeof parameters?.temperature === "number" ? parameters.temperature : undefined,
 			top_p: typeof parameters?.top_p === "number" ? parameters.top_p : undefined,
@@ -633,9 +728,10 @@ export async function* runMcpFlow({
 			lastAssistantContent = "";
 			streamedContent = false;
 
+			// LM Studio/Ollama only support string tool_choice values, not object format
 			const toolChoice =
 				loop === 0 && forcedToolName
-					? { type: "function" as const, function: { name: forcedToolName } }
+					? (localProvider ? "required" : { type: "function" as const, function: { name: forcedToolName } })
 					: "auto";
 			const completionRequest: ChatCompletionCreateParamsStreaming = {
 				...completionBase,

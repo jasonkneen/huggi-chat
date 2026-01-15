@@ -85,6 +85,17 @@ export const enabledServers = derived([allMcpServers, selectedServerIds], ([$all
 // Derived store: count of enabled servers
 export const enabledServersCount = derived(enabledServers, ($enabled) => $enabled.length);
 
+// Derived store: all tools from enabled servers (aggregated from MCP health checks)
+export const enabledServerTools = derived(enabledServers, ($enabled) => {
+	const tools: MCPTool[] = [];
+	for (const server of $enabled) {
+		if (server.tools && server.tools.length > 0) {
+			tools.push(...server.tools);
+		}
+	}
+	return tools;
+});
+
 // Derived store: true if all base servers are enabled
 export const allBaseServersEnabled = derived(
 	[allMcpServers, selectedServerIds],

@@ -21,7 +21,7 @@ export type GETModelsResponse = Array<{
 	preprompt?: string;
 	multimodal: boolean;
 	multimodalAcceptedMimetypes?: string[];
-	supportsTools?: boolean;
+	supportsTools: boolean;
 	unlisted: boolean;
 	hasInferenceAPI: boolean;
 	// Mark router entry for UI decoration — always present

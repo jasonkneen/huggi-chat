@@ -13,7 +13,8 @@ interface WorkspacesState {
 	workspaces: Workspace[];
 	activeWorkspaceId: string | null;
 	noWorkspaceCollapsed: boolean;
-	conversationWorkspaces: Record<string, string[]>;
+	// Maps conversationId -> workspaceId (one chat = one workspace max)
+	conversationWorkspaces: Record<string, string>;
 }
 
 const STORAGE_KEY = "chat-ui-workspaces";
@@ -136,43 +137,47 @@ function createWorkspacesStore() {
 			return get({ subscribe }).workspaces.find((w) => w.path === path);
 		},
 
+		// Set a conversation's workspace (replaces any previous workspace)
 		addConversationToWorkspace(conversationId: string, workspaceId: string) {
+			update((state) => ({
+				...state,
+				conversationWorkspaces: {
+					...state.conversationWorkspaces,
+					[conversationId]: workspaceId,
+				},
+			}));
+		},
+
+		// Remove a conversation from its workspace
+		removeConversationFromWorkspace(conversationId: string) {
 			update((state) => {
 				const newMap = { ...state.conversationWorkspaces };
-				const existing = newMap[conversationId] ?? [];
-				if (!existing.includes(workspaceId)) {
-					newMap[conversationId] = [...existing, workspaceId];
-				}
+				delete newMap[conversationId];
 				return { ...state, conversationWorkspaces: newMap };
 			});
 		},
 
-		removeConversationFromWorkspace(conversationId: string, workspaceId: string) {
-			update((state) => {
-				const newMap = { ...state.conversationWorkspaces };
-				const existing = newMap[conversationId] ?? [];
-				newMap[conversationId] = existing.filter((id) => id !== workspaceId);
-				if (newMap[conversationId].length === 0) {
-					delete newMap[conversationId];
-				}
-				return { ...state, conversationWorkspaces: newMap };
-			});
+		// Get the workspace ID for a conversation (or null if not in any workspace)
+		getConversationWorkspace(conversationId: string): string | null {
+			return get({ subscribe }).conversationWorkspaces[conversationId] ?? null;
 		},
 
-		getConversationWorkspaces(conversationId: string): string[] {
-			return get({ subscribe }).conversationWorkspaces[conversationId] ?? [];
-		},
-
+		// Get all conversation IDs in a workspace
 		getConversationsForWorkspace(workspaceId: string): string[] {
 			const state = get({ subscribe });
 			return Object.entries(state.conversationWorkspaces)
-				.filter(([, wsIds]) => wsIds.includes(workspaceId))
+				.filter(([, wsId]) => wsId === workspaceId)
 				.map(([convId]) => convId);
 		},
 
+		// Check if a conversation is in a specific workspace
 		isConversationInWorkspace(conversationId: string, workspaceId: string): boolean {
-			const wsIds = get({ subscribe }).conversationWorkspaces[conversationId] ?? [];
-			return wsIds.includes(workspaceId);
+			return get({ subscribe }).conversationWorkspaces[conversationId] === workspaceId;
+		},
+
+		// Check if a conversation is in ANY workspace
+		isConversationInAnyWorkspace(conversationId: string): boolean {
+			return conversationId in get({ subscribe }).conversationWorkspaces;
 		},
 	};
 }

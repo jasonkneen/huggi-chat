@@ -55,7 +55,10 @@ export function buildToolPreprompt(
 	);
 	lines.push("");
 
-	for (const [serverName, serverToolList] of Object.entries(serverTools)) {
+	// Sort servers and tools alphabetically for cache-stable output
+	const sortedServers = Object.keys(serverTools).sort();
+	for (const serverName of sortedServers) {
+		const serverToolList = serverTools[serverName].sort((a, b) => a.name.localeCompare(b.name));
 		lines.push(`### MCP Server: ${serverName}`);
 		for (const tool of serverToolList) {
 			lines.push(`- **${tool.name}**: ${tool.desc}`);

@@ -26,7 +26,7 @@
 <Modal
 	onclose={() => goto(previousPage)}
 	disableFly={true}
-	width="border border-[0.5px] dark:border-gray-600 h-[95dvh] w-[90dvw] pb-0 overflow-hidden rounded-2xl bg-white shadow-2xl outline-none dark:bg-gray-800 dark:text-gray-200 sm:h-[95dvh] xl:w-[1200px] xl:h-[85dvh] 2xl:h-[75dvh]"
+	width="border border-[0.5px] dark:border-gray-600 h-[95dvh] w-[90dvw] pb-0 overflow-hidden rounded-2xl bg-gray-50 shadow-2xl outline-none dark:bg-gray-700 dark:text-gray-200 sm:h-[95dvh] xl:w-[1200px] xl:h-[85dvh] 2xl:h-[75dvh]"
 >
 	{@render children?.()}
 	{#if $settings.recentlySaved}

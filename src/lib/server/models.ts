@@ -269,7 +269,12 @@ const createValidModelIdSchema = (modelList: ProcessedModel[]): z.ZodType<string
 		throw new Error("No models available to build validation schema");
 	}
 	const ids = new Set(modelList.map((m) => m.id));
-	return z.string().refine((value) => ids.has(value), "Invalid model id");
+	// Accept server models OR local model patterns (ollama/*, lmstudio/*)
+	return z.string().refine(
+		(value) =>
+			ids.has(value) || value.startsWith("ollama/") || value.startsWith("lmstudio/"),
+		"Invalid model id"
+	);
 };
 
 const resolveTaskModel = (modelList: ProcessedModel[]) => {
@@ -607,8 +612,15 @@ export const refreshModels = async (): Promise<ModelsRefreshSummary> => {
 };
 
 export const validateModel = (_models: BackendModel[]) => {
-	// Zod enum function requires 2 parameters
-	return z.enum([_models[0].id, ..._models.slice(1).map((m) => m.id)]);
+	// Accept server models OR local model patterns (ollama/*, lmstudio/*)
+	const serverModelIds = _models.map((m) => m.id);
+	return z.string().refine(
+		(value) =>
+			serverModelIds.includes(value) ||
+			value.startsWith("ollama/") ||
+			value.startsWith("lmstudio/"),
+		{ message: "Invalid model id" }
+	);
 };
 
 // if `TASK_MODEL` is string & name of a model in `MODELS`, then we use `MODELS[TASK_MODEL]`, else we try to parse `TASK_MODEL` as a model config itself

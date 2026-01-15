@@ -1,11 +1,12 @@
 <script lang="ts">
-	import type { ToolFront } from "$lib/types/Tool";
+	import type { ToolFront, MCPTool } from "$lib/types/Tool";
 	import LucideHammer from "~icons/lucide/hammer";
 	import LucideX from "~icons/lucide/x";
 	import LucidePlay from "~icons/lucide/play";
 	import CarbonCheckmark from "~icons/carbon/checkmark";
 	import { base } from "$app/paths";
 	import { onMount } from "svelte";
+	import { enabledServerTools } from "$lib/stores/mcpServers";
 
 	interface Props {
 		onclose: () => void;
@@ -15,18 +16,37 @@
 
 	interface ToolWithParams extends ToolFront {
 		parameters?: unknown;
+		source?: "server" | "mcp";
 	}
 
-	let tools = $state<ToolWithParams[]>([]);
+	let serverTools = $state<ToolWithParams[]>([]);
 	let isLoading = $state(true);
 	let loadError = $state<string | null>(null);
+
+	// Combine server tools with MCP tools from enabled servers
+	let tools = $derived.by(() => {
+		const mcpTools: ToolWithParams[] = $enabledServerTools.map((tool: MCPTool, idx: number) => ({
+			_id: `mcp_${idx}_${tool.name}`,
+			name: tool.name,
+			displayName: tool.name.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+			description: tool.description || "",
+			parameters: tool.inputSchema,
+			source: "mcp" as const,
+		}));
+
+		// Deduplicate by name (server tools take precedence)
+		const serverToolNames = new Set(serverTools.map((t) => t.name));
+		const uniqueMcpTools = mcpTools.filter((t) => !serverToolNames.has(t.name));
+
+		return [...serverTools.map((t) => ({ ...t, source: "server" as const })), ...uniqueMcpTools];
+	});
 
 	onMount(async () => {
 		try {
 			const response = await fetch(`${base}/api/tools`);
 			if (!response.ok) throw new Error("Failed to load tools");
 			const data = await response.json();
-			tools = data.tools || [];
+			serverTools = data.tools || [];
 		} catch (err) {
 			loadError = err instanceof Error ? err.message : "Failed to load tools";
 		} finally {
@@ -171,6 +191,11 @@
 			<div class="overflow-y-auto p-4">
 				<h3 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
 					Available Tools ({tools.length})
+					{#if $enabledServerTools.length > 0}
+						<span class="ml-1 text-xs text-purple-500">
+							({$enabledServerTools.length} from MCP)
+						</span>
+					{/if}
 				</h3>
 				{#if isLoading}
 					<div class="flex items-center justify-center py-12">
@@ -206,6 +231,11 @@
 											<span class="font-mono text-sm font-medium text-gray-900 dark:text-gray-100">
 												{tool.displayName || tool.name}
 											</span>
+											{#if tool.source === "mcp"}
+												<span class="rounded bg-purple-100 px-1 py-0.5 text-[9px] font-semibold uppercase text-purple-600 dark:bg-purple-900/40 dark:text-purple-400">
+													MCP
+												</span>
+											{/if}
 											{#if selectedTool?.name === tool.name}
 												<CarbonCheckmark
 													class="size-4 text-purple-600 dark:text-purple-400"

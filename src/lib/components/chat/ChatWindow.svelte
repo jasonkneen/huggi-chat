@@ -31,7 +31,7 @@
 	import { routerExamples } from "$lib/constants/routerExamples";
 	import { mcpExamples } from "$lib/constants/mcpExamples";
 	import type { RouterFollowUp, RouterExample } from "$lib/constants/routerExamples";
-	import { allBaseServersEnabled, mcpServersLoaded } from "$lib/stores/mcpServers";
+	import { allBaseServersEnabled, mcpServersLoaded, enabledServerTools } from "$lib/stores/mcpServers";
 	import { allWorkspaces, conversationWorkspaces } from "$lib/stores/workspaces";
 	import { shareModal } from "$lib/stores/shareModal";
 	import { toolDebuggerOpen } from "$lib/stores/toolDebugger";
@@ -88,7 +88,12 @@
 		onshowAlternateMsg,
 	}: Props = $props();
 
-	let isReadOnly = $derived(!models.some((model) => model.id === currentModel.id));
+	// Check if model is valid - either in models list or a valid local model pattern
+	const isLocalModelId = (id: string) =>
+		id.startsWith("ollama/") || id.startsWith("lmstudio/");
+	let isReadOnly = $derived(
+		!models.some((model) => model.id === currentModel.id) && !isLocalModelId(currentModel.id)
+	);
 
 	let shareModalOpen = $state(false);
 	let editMsdgId: Message["id"] | null = $state(null);
@@ -279,9 +284,22 @@
 	);
 
 	// Expose currently running tool call name (if any) from the streaming assistant message
-	const availableTools: ToolFront[] = $derived.by(
-		() => (page.data as { tools?: ToolFront[] } | undefined)?.tools ?? []
-	);
+	// Combine server-provided tools with MCP tools from enabled servers
+	const availableTools: ToolFront[] = $derived.by(() => {
+		const serverTools = (page.data as { tools?: ToolFront[] } | undefined)?.tools ?? [];
+		const mcpTools: ToolFront[] = $enabledServerTools.map((tool, idx) => ({
+			_id: `mcp_${idx}_${tool.name}`,
+			name: tool.name,
+			displayName: tool.name.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+			description: tool.description || "",
+		}));
+
+		// Deduplicate by name (server tools take precedence)
+		const serverToolNames = new Set(serverTools.map((t) => t.name));
+		const uniqueMcpTools = mcpTools.filter((t) => !serverToolNames.has(t.name));
+
+		return [...serverTools, ...uniqueMcpTools];
+	});
 	let streamingToolCallName = $derived.by(() => {
 		const updates = streamingAssistantMessage?.updates ?? [];
 		if (!updates.length) return null;
@@ -378,8 +396,7 @@
 
 	// Determine tool support for the current model (server-provided capability with user override)
 	let modelSupportsTools = $derived(
-		($settings.toolsOverrides?.[currentModel.id] ??
-			(currentModel as unknown as { supportsTools?: boolean }).supportsTools) === true
+		($settings.toolsOverrides?.[currentModel.id] ?? currentModel.supportsTools) === true
 	);
 
 	// Always allow common text-like files; add images only when model is multimodal
@@ -794,7 +811,7 @@
 					"max-sm:hidden": focused && isVirtualKeyboard(),
 				}}
 			>
-				{#if models.find((m) => m.id === currentModel.id)}
+				{#if models.find((m) => m.id === currentModel.id) || isLocalModelId(currentModel.id)}
 					{#if loading && streamingToolCallName}
 						<span class="inline-flex items-center gap-1 whitespace-nowrap text-xs">
 							<LucideHammer class="size-3" />

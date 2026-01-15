@@ -14,6 +14,12 @@ import { randomUUID } from "crypto";
 import { getMcpServers } from "../mcp/registry";
 import { getOpenAiToolsForMcp } from "../mcp/tools";
 import { buildToolPreprompt } from "./utils/toolPrompt";
+import {
+	getLocalToolsForWorkspaces,
+	buildLocalToolContext,
+	LOCAL_TOOL_SERVER_NAME,
+	type LocalWorkspace,
+} from "../mcp/localTools";
 
 type GenerateContext = Omit<TextGenerationContext, "messages"> & { messages: EndpointMessage[] };
 
@@ -34,9 +40,23 @@ export async function* generateClaudeAgentSdk(
 		| undefined;
 	const budgetTokens = thinkingLevel !== undefined ? thinkingTokensMap[thinkingLevel] : undefined;
 
-	// Load MCP tools for this request
+	// Load local tools and MCP tools for this request
 	let systemPrompt = preprompt || "";
+
+	// Get workspaces from locals (if attached) - use default workspace if none provided
+	const rawWorkspaces = (
+		locals as unknown as { workspaces?: LocalWorkspace[] }
+	)?.workspaces;
+	const workspaces = rawWorkspaces && rawWorkspaces.length > 0
+		? rawWorkspaces
+		: [{ name: "workspace", path: process.cwd(), isGitRepo: false }];
+
 	try {
+		// 1. Get local workspace tools (list_files, read_file, write_file, run_command, search_files)
+		const { tools: localTools, mapping: localMapping } = getLocalToolsForWorkspaces(workspaces);
+		const localToolContext = buildLocalToolContext(workspaces);
+
+		// 2. Get MCP tools from servers
 		const baseServers = getMcpServers();
 		const reqMcp = (
 			locals as unknown as {
@@ -50,22 +70,31 @@ export async function* generateClaudeAgentSdk(
 		const selectedServers = Array.isArray(reqMcp?.selectedServers) ? reqMcp.selectedServers : [];
 		const servers = [...baseServers, ...selectedServers];
 
+		let mcpTools: Awaited<ReturnType<typeof getOpenAiToolsForMcp>>["tools"] = [];
+		let mcpMapping: Awaited<ReturnType<typeof getOpenAiToolsForMcp>>["mapping"] = {};
+
 		if (servers.length > 0) {
-			const { tools, mapping } = await getOpenAiToolsForMcp(servers, {
+			const result = await getOpenAiToolsForMcp(servers, {
 				signal: abortController.signal,
 			});
+			mcpTools = result.tools;
+			mcpMapping = result.mapping;
+		}
 
-			if (tools.length > 0) {
-				const toolPreprompt = buildToolPreprompt(tools, mapping);
-				systemPrompt = [toolPreprompt, preprompt].filter(Boolean).join("\n\n");
-				logger.info(
-					{ toolCount: tools.length, serverCount: servers.length },
-					"[claude-agent-sdk] Loaded MCP tools"
-				);
-			}
+		// 3. Merge all tools (local + MCP)
+		const allTools = [...localTools, ...mcpTools];
+		const allMapping = { ...localMapping, ...mcpMapping };
+
+		if (allTools.length > 0) {
+			const toolPreprompt = buildToolPreprompt(allTools, allMapping, workspaces);
+			systemPrompt = [toolPreprompt, preprompt].filter(Boolean).join("\n\n");
+			logger.info(
+				{ totalTools: allTools.length, localTools: localTools.length, mcpTools: mcpTools.length, serverCount: servers.length },
+				"[claude-agent-sdk] Loaded tools for generation"
+			);
 		}
 	} catch (error) {
-		logger.error({ error }, "[claude-agent-sdk] Failed to load MCP tools, continuing without them");
+		logger.error({ error }, "[claude-agent-sdk] Failed to load tools, continuing without them");
 	}
 
 	logger.info({ modelId, thinkingLevel, budgetTokens }, "[claude-agent-sdk] Starting generation");

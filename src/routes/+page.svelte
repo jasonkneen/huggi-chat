@@ -16,10 +16,29 @@
 	import { loading } from "$lib/stores/loading.js";
 	import { loadAttachmentsFromUrls } from "$lib/utils/loadAttachmentsFromUrls";
 	import { requireAuthUser } from "$lib/utils/auth";
+	import { localModels } from "$lib/stores/localModels";
+	import type { Model } from "$lib/types/Model";
+	import { localToModel } from "$lib/utils/models";
+	import { workspaces, activeWorkspace } from "$lib/stores/workspaces";
+	import { browser } from "$app/environment";
 
 	let { data } = $props();
 
-	let hasModels = $derived(Boolean(data.models?.length));
+	// Merge server models with local models
+	let allModels = $derived.by(() => {
+		const serverModels = data.models || [];
+		const ollamaModels = $localModels.ollama.map(localToModel);
+		const lmstudioModels = $localModels.lmstudio.map(localToModel);
+
+		// Avoid duplicates by id
+		const existingIds = new Set(serverModels.map((m: Model) => m.id));
+		const uniqueOllama = ollamaModels.filter((m) => !existingIds.has(m.id));
+		const uniqueLmstudio = lmstudioModels.filter((m) => !existingIds.has(m.id));
+
+		return [...serverModels, ...uniqueOllama, ...uniqueLmstudio];
+	});
+
+	let hasModels = $derived(Boolean(allModels?.length));
 	let files: File[] = $state([]);
 	let draft = $state("");
 
@@ -30,16 +49,21 @@
 			$loading = true;
 
 			// check if $settings.activeModel is a valid model
-			// else check if it's an assistant, and use that model
+			// else check if it's a local model (ollama/*, lmstudio/*)
 			// else use the first model
 
-			const validModels = data.models.map((model) => model.id);
+			const validModels = allModels.map((model: Model) => model.id);
+			const isLocalModelId = (id: string) =>
+				id.startsWith("ollama/") || id.startsWith("lmstudio/");
 
 			let model;
 			if (validModels.includes($settings.activeModel)) {
 				model = $settings.activeModel;
+			} else if (isLocalModelId($settings.activeModel)) {
+				// Accept local model IDs even if not in the list yet (race condition with store)
+				model = $settings.activeModel;
 			} else {
-				model = data.models[0].id;
+				model = allModels[0].id;
 			}
 			const res = await fetch(`${base}/conversation`, {
 				method: "POST",
@@ -69,6 +93,11 @@
 			}
 
 			const { conversationId } = await res.json();
+
+			// If there's an active workspace (Electron), associate the new conversation with it
+			if (browser && $activeWorkspace) {
+				workspaces.addConversationToWorkspace(conversationId, $activeWorkspace.id);
+			}
 
 			// Ugly hack to use a store as temp storage, feel free to improve ^^
 			pendingMessage.set({
@@ -141,7 +170,7 @@
 		}
 	});
 
-	let currentModel = $derived(findCurrentModel(data.models, data.oldModels, $settings.activeModel));
+	let currentModel = $derived(findCurrentModel(allModels, data.oldModels, $settings.activeModel));
 </script>
 
 <svelte:head>
@@ -153,7 +182,7 @@
 		onmessage={(message) => createConversation(message)}
 		loading={$loading}
 		{currentModel}
-		models={data.models}
+		models={allModels}
 		bind:files
 		bind:draft
 	/>

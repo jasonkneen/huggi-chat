@@ -1,6 +1,7 @@
 import { authCondition } from "$lib/server/auth";
 import { collections } from "$lib/server/database";
 import { models, validModelIdSchema } from "$lib/server/models";
+import { isLocalModelId, createLocalModel } from "$lib/server/localModels";
 import { ERROR_MESSAGES } from "$lib/stores/errors";
 import type { Message } from "$lib/types/Message";
 import { error } from "@sveltejs/kit";
@@ -106,16 +107,19 @@ export async function POST({ request, locals, params, getClientAddress }) {
 		);
 	}
 
-	// fetch the model
-	const model = models.find((m) => m.id === conv.model);
+	// fetch the model - check server models first, then handle local models
+	let model = models.find((m) => m.id === conv.model);
+
+	// If not found in server models, check if it's a local model
+	if (!model && isLocalModelId(conv.model)) {
+		model = await createLocalModel(conv.model);
+	}
 
 	console.log("[conversation/+server.ts] Model lookup:", {
 		convModel: conv.model,
 		foundModel: !!model,
 		modelId: model?.id,
-		hasEndpoints: !!model?.endpoints,
-		endpointsLength: model?.endpoints?.length,
-		firstEndpointType: model?.endpoints?.[0]?.type,
+		isLocal: isLocalModelId(conv.model),
 	});
 
 	if (!model) {

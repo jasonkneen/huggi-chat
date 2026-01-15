@@ -13,8 +13,27 @@
 	import { sanitizeUrlParam } from "$lib/utils/urlParams";
 	import { loadAttachmentsFromUrls } from "$lib/utils/loadAttachmentsFromUrls";
 	import { requireAuthUser } from "$lib/utils/auth";
+	import { localModels } from "$lib/stores/localModels";
+	import type { Model } from "$lib/types/Model";
+	import { localToModel } from "$lib/utils/models";
+	import { workspaces, activeWorkspace } from "$lib/stores/workspaces";
+	import { browser } from "$app/environment";
 
 	let { data } = $props();
+
+	// Merge server models with local models
+	let allModels = $derived.by(() => {
+		const serverModels = data.models || [];
+		const ollamaModels = $localModels.ollama.map(localToModel);
+		const lmstudioModels = $localModels.lmstudio.map(localToModel);
+
+		// Avoid duplicates by id
+		const existingIds = new Set(serverModels.map((m: Model) => m.id));
+		const uniqueOllama = ollamaModels.filter((m) => !existingIds.has(m.id));
+		const uniqueLmstudio = lmstudioModels.filter((m) => !existingIds.has(m.id));
+
+		return [...serverModels, ...uniqueOllama, ...uniqueLmstudio];
+	});
 
 	let loading = $state(false);
 	let files: File[] = $state([]);
@@ -46,6 +65,11 @@
 			}
 
 			const { conversationId } = await res.json();
+
+			// If there's an active workspace (Electron), associate the new conversation with it
+			if (browser && $activeWorkspace) {
+				workspaces.addConversationToWorkspace(conversationId, $activeWorkspace.id);
+			}
 
 			// Ugly hack to use a store as temp storage, feel free to improve ^^
 			pendingMessage.set({
@@ -136,8 +160,8 @@
 <ChatWindow
 	onmessage={(message) => createConversation(message)}
 	{loading}
-	currentModel={findCurrentModel(data.models, data.oldModels, modelId)}
-	models={data.models}
+	currentModel={findCurrentModel(allModels, data.oldModels, modelId)}
+	models={allModels}
 	bind:files
 	bind:draft
 />
