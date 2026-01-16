@@ -26,6 +26,10 @@
 	import { toolDebuggerOpen } from "$lib/stores/toolDebugger";
 	import { requireAuthUser } from "$lib/utils/auth";
 	import { autoConnectProviders } from "$lib/utils/autoConnectProviders";
+	import { leftPanelOpen, rightPanelOpen } from "$lib/stores/panels";
+	import RightSidebar from "$lib/components/RightSidebar.svelte";
+	import { browser } from "$app/environment";
+	import IconSidebar from "~icons/carbon/side-panel-open";
 
 	let { data = $bindable(), children } = $props();
 
@@ -41,9 +45,18 @@
 
 	let isNavCollapsed = $state(false);
 
+	// Sync nav collapsed state with panel store
+	$effect(() => {
+		leftPanelOpen.set(!isNavCollapsed);
+	});
+
 	// Resizable nav panel
 	let navWidth = $state(290);
+	let rightSidebarWidth = $state(300);
 	let isResizing = $state(false);
+
+	// Electron detection for right sidebar
+	const isElectron = browser && !!(window as any).electronAPI;
 
 	onMount(() => {
 		// Load saved width from localStorage
@@ -294,7 +307,7 @@
 
 <div
 	class="fixed grid h-full w-screen overflow-hidden bg-white text-smd dark:bg-transparent dark:text-gray-300 {isResizing ? '' : 'transition-[300ms] [transition-property:grid-template-columns]'}"
-	style="grid-template-columns: {!isNavCollapsed ? `${navWidth}px 1fr` : '0px 1fr'}; grid-template-rows: auto 1fr;"
+	style="grid-template-columns: {!isNavCollapsed ? `${navWidth}px` : '0px'} 1fr {isElectron && $rightPanelOpen ? `${rightSidebarWidth}px` : '0px'}; grid-template-rows: auto 1fr;"
 >
 	{#if canShare}
 		<button
@@ -351,9 +364,30 @@
 	{#if currentError}
 		<Toast message={currentError} />
 	{/if}
-	<div class="h-full overflow-hidden" style="grid-column: 2; grid-row: 1 / -1;">
+
+	<!-- Main content area -->
+	<div class="relative h-full overflow-hidden" style="grid-column: 2; grid-row: 1 / -1;">
 		{@render children?.()}
+
+		<!-- Right panel toggle button (Electron only) -->
+		{#if isElectron}
+			<button
+				onclick={() => rightPanelOpen.update(v => !v)}
+				class="absolute right-4 top-4 z-20 flex size-8 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition-colors hover:bg-white hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800/90 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200
+					{$rightPanelOpen ? 'bg-gray-100 dark:bg-gray-700' : ''}"
+				title={$rightPanelOpen ? 'Close files panel' : 'Open files panel'}
+			>
+				<IconSidebar class="size-4 {$rightPanelOpen ? 'rotate-180' : ''}" />
+			</button>
+		{/if}
 	</div>
+
+	<!-- Right sidebar (Electron only) -->
+	{#if isElectron}
+		<div style="grid-column: 3; grid-row: 1 / -1;">
+			<RightSidebar width={rightSidebarWidth} />
+		</div>
+	{/if}
 
 	{#if publicConfig.PUBLIC_PLAUSIBLE_SCRIPT_URL}
 		<script>

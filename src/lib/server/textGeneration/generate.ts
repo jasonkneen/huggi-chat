@@ -89,7 +89,14 @@ export async function* generate(
 
 		// Check if this output contains usage data (actual token counts from API)
 		const outputWithUsage = output as {
-			usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+			usage?: {
+				promptTokens: number;
+				completionTokens: number;
+				totalTokens: number;
+				cachedTokens?: number;
+				cacheCreationTokens?: number;
+				cacheReadTokens?: number;
+			};
 		};
 		if (outputWithUsage.usage) {
 			yield {
@@ -97,6 +104,9 @@ export async function* generate(
 				promptTokens: outputWithUsage.usage.promptTokens,
 				completionTokens: outputWithUsage.usage.completionTokens,
 				totalTokens: outputWithUsage.usage.totalTokens,
+				cachedTokens: outputWithUsage.usage.cachedTokens,
+				cacheCreationTokens: outputWithUsage.usage.cacheCreationTokens,
+				cacheReadTokens: outputWithUsage.usage.cacheReadTokens,
 			};
 			continue;
 		}

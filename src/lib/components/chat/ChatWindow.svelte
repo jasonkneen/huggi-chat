@@ -45,6 +45,8 @@
 	import { cubicInOut } from "svelte/easing";
 
 	import { isVirtualKeyboard } from "$lib/utils/isVirtualKeyboard";
+	import { leftPanelOpen, rightPanelOpen } from "$lib/stores/panels";
+	import ChatHeader from "./ChatHeader.svelte";
 	import { requireAuthUser } from "$lib/utils/auth";
 	import { page } from "$app/state";
 	import {
@@ -69,6 +71,7 @@
 		onretry?: (payload: { id: Message["id"]; content?: string }) => void;
 		onshowAlternateMsg?: (payload: { id: Message["id"] }) => void;
 		draft?: string;
+		title?: string;
 	}
 
 	let {
@@ -86,6 +89,7 @@
 		onstop,
 		onretry,
 		onshowAlternateMsg,
+		title,
 	}: Props = $props();
 
 	// Check if model is valid - either in models list or a valid local model pattern
@@ -415,6 +419,9 @@
 	let isFileUploadEnabled = $derived(activeMimeTypes.length > 0);
 	let focused = $state(false);
 
+	// When both panels are open, input fills space; otherwise it floats centered
+	let inputShouldFloat = $derived(!$leftPanelOpen || !$rightPanelOpen);
+
 	let activeRouterExamplePrompt = $state<string | null>(null);
 	// Use MCP examples when all base servers are enabled, otherwise use router examples
 	let activeExamples = $derived<RouterExample[]>(
@@ -566,10 +573,13 @@
 	}}
 />
 
-<div class="relative z-0 h-full min-w-0 bg-white dark:bg-transparent">
+<div class="relative z-0 flex h-full min-w-0 flex-col bg-white dark:bg-transparent">
+	<!-- Chat Header -->
+	<ChatHeader {title} />
+
 	<!-- Top gradient fade -->
 	<div
-		class="pointer-events-none absolute inset-x-0 top-0 z-10 flex h-16 w-full
+		class="pointer-events-none absolute inset-x-0 top-10 z-10 flex h-16 w-full
 			bg-gradient-to-b from-white via-white/50 to-transparent
 			dark:from-black/40 dark:via-black/20 dark:to-transparent"
 	></div>
@@ -578,7 +588,7 @@
 		<ShareConversationModal open={shareModalOpen} onclose={() => shareModal.close()} />
 	{/if}
 	<div
-		class="scrollbar-custom h-full overflow-y-auto"
+		class="scrollbar-custom flex-1 overflow-y-auto"
 		use:snapScrollToBottom={scrollDependency}
 		bind:this={chatContainer}
 	>
@@ -655,8 +665,10 @@
 			dark:from-black/40 dark:via-black/20
 			dark:to-transparent max-sm:py-0 md:pb-4"
 	>
-		<!-- Centered content container -->
-		<div class="mx-auto flex w-full max-w-3xl flex-col items-center px-3.5 sm:px-5 xl:max-w-4xl [&>*]:pointer-events-auto">
+		<!-- Centered content container - floats centered when space available, fills when panels open -->
+		<div class="flex w-full flex-col items-center px-3.5 sm:px-5 [&>*]:pointer-events-auto
+			{inputShouldFloat ? 'mx-auto max-w-3xl xl:max-w-4xl' : ''}"
+		>
 		{#if !draft.length && !messages.length && !sources.length && !loading && currentModel.isRouter && activeExamples.length && !hideRouterExamples && !lastIsError && $mcpServersLoaded}
 			<div
 				class="no-scrollbar mb-3 flex w-full select-none justify-start gap-2 overflow-x-auto whitespace-nowrap text-gray-400 dark:text-gray-500"

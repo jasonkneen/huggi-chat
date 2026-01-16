@@ -431,6 +431,9 @@
 						promptTokens: update.promptTokens,
 						completionTokens: update.completionTokens,
 						totalTokens: update.totalTokens,
+						cachedTokens: update.cachedTokens,
+						cacheCreationTokens: update.cacheCreationTokens,
+						cacheReadTokens: update.cacheReadTokens,
 						cost: update.cost,
 					};
 				} else if (update.type === MessageUpdateType.StdioToolRequest) {
@@ -624,6 +627,7 @@
 	onstop={stopGeneration}
 	models={allModels}
 	currentModel={findCurrentModel(allModels, data.oldModels, data.model)}
+	{title}
 />
 
 {#if showSubscribeModal}

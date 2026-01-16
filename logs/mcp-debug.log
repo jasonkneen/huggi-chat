@@ -115,3 +115,8 @@
 {"ts":"2026-01-15T10:51:27.388Z","event":"mcp_gate","model":"lmstudio/zai-org/glm-4.6v-flash","supportsTools":true,"forceTools":true,"toolsEnabled":true,"hasConfiguredTools":true,"stdioToolCount":0,"httpServerCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
 {"ts":"2026-01-15T10:51:27.388Z","event":"mcp_tools_listed","model":"lmstudio/zai-org/glm-4.6v-flash","httpToolCount":0,"stdioToolCount":0,"localToolCount":6,"totalToolCount":6}
 {"ts":"2026-01-15T10:51:27.388Z","event":"mcp_start","model":"lmstudio/zai-org/glm-4.6v-flash","mmEnabled":true,"toolCount":6,"forcedToolName":""}
+{"ts":"2026-01-16T13:30:14.169Z","event":"mcp_tools_listed","model":"baidu/ERNIE-4.5-0.3B-PT","httpToolCount":0,"stdioToolCount":0,"localToolCount":6,"totalToolCount":6}
+{"ts":"2026-01-16T13:30:14.169Z","event":"mcp_info","stage":"stdio_only","model":"baidu/ERNIE-4.5-0.3B-PT","stdioToolCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T13:30:14.169Z","event":"mcp_start","model":"baidu/ERNIE-4.5-0.3B-PT","mmEnabled":false,"toolCount":6,"forcedToolName":""}
+{"ts":"2026-01-16T13:30:14.169Z","event":"mcp_gate","model":"baidu/ERNIE-4.5-0.3B-PT","supportsTools":false,"forceTools":false,"toolsEnabled":true,"hasConfiguredTools":true,"stdioToolCount":0,"httpServerCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T13:30:34.644Z","event":"mcp_error","model":"baidu/ERNIE-4.5-0.3B-PT","error":"Error: 500 status code (no body)"}

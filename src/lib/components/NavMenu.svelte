@@ -143,8 +143,9 @@
 	let workspaceSectionCollapsed = $state(false);
 	let chatsSectionCollapsed = $state(false);
 
-	// Tab state for Electron: "chat" or "code"
-	let activeTab: "chat" | "code" = $state("chat");
+	// View state for Electron: "projects" or "chats"
+	let activeView: "projects" | "chats" = $state("projects");
+	let showViewDropdown = $state(false);
 
 	if (browser) {
 		unsubscribeTheme = subscribeToTheme(({ isDark: nextIsDark }) => {
@@ -155,6 +156,16 @@
 	onDestroy(() => {
 		unsubscribeTheme?.();
 	});
+
+	// Close dropdown when clicking outside
+	function handleClickOutside(event: MouseEvent) {
+		if (showViewDropdown) {
+			const target = event.target as HTMLElement;
+			if (!target.closest(".view-dropdown-container")) {
+				showViewDropdown = false;
+			}
+		}
+	}
 
 	async function handleAddWorkspace() {
 		await workspaces.addWorkspace();
@@ -168,6 +179,8 @@
 		workspaces.setActiveWorkspace(workspaceId);
 	}
 </script>
+
+<svelte:window onclick={handleClickOutside} />
 
 <div
 	class="sticky top-0 flex flex-none touch-none items-center justify-between px-3 py-3.5 max-sm:pt-0"
@@ -195,40 +208,75 @@
 <div
 	class="scrollbar-custom flex min-h-0 flex-col gap-1 overflow-y-auto rounded-r-xl border border-l-0 border-gray-100 px-3 py-2 dark:border-transparent md:bg-gradient-to-l md:from-gray-50 md:dark:from-gray-800/30"
 >
-	<!-- Tab switcher: Only shown in Electron -->
+	<!-- View selector: Only shown in Electron -->
 	{#if isElectron}
-		<div class="mb-2 flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+		<div class="view-dropdown-container relative mb-2 flex items-center">
+			<!-- Dropdown trigger -->
 			<button
-				onclick={() => (activeTab = "chat")}
-				class="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors
-					{activeTab === 'chat'
-					? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-					: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-				aria-current={activeTab === "chat" ? "page" : undefined}
+				onclick={() => (showViewDropdown = !showViewDropdown)}
+				class="flex flex-1 items-center gap-2 px-1 py-1.5 text-left"
 			>
-				<IconChat class="size-4" />
-				Chat
+				<IconFolder class="size-4 text-gray-500 dark:text-gray-400" />
+				<span class="flex-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+					{activeView === "projects" ? "Workspaces" : "Chats"}
+				</span>
+				<IconChevronDown
+					class="size-4 text-gray-400 transition-transform {showViewDropdown ? 'rotate-180' : ''}"
+				/>
 			</button>
-			<button
-				onclick={() => (activeTab = "code")}
-				class="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors
-					{activeTab === 'code'
-					? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-					: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-				aria-current={activeTab === "code" ? "page" : undefined}
-			>
-				<IconCode class="size-4" />
-				Code
-			</button>
+
+			<!-- Add workspace button (only in projects view) -->
+			{#if activeView === "projects"}
+				<button
+					onclick={(e) => {
+						e.stopPropagation();
+						handleAddWorkspace();
+					}}
+					class="flex size-6 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+					title="Add workspace"
+				>
+					<IconAdd class="size-4" />
+				</button>
+			{/if}
+
+			<!-- Dropdown menu -->
+			{#if showViewDropdown}
+				<div
+					class="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+				>
+					<button
+						onclick={() => {
+							activeView = "chats";
+							showViewDropdown = false;
+						}}
+						class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700
+							{activeView === 'chats' ? 'bg-gray-50 dark:bg-gray-700/50' : ''}"
+					>
+						<IconChat class="size-4 text-gray-500 dark:text-gray-400" />
+						<span class="text-gray-700 dark:text-gray-200">Chats</span>
+					</button>
+					<button
+						onclick={() => {
+							activeView = "projects";
+							showViewDropdown = false;
+						}}
+						class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-gray-700
+							{activeView === 'projects' ? 'bg-gray-50 dark:bg-gray-700/50' : ''}"
+					>
+						<IconFolder class="size-4 text-gray-500 dark:text-gray-400" />
+						<span class="text-gray-700 dark:text-gray-200">Workspaces</span>
+					</button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 
-	<!-- CODE TAB: Workspaces (Electron only) -->
-	{#if isElectron && activeTab === "code"}
+	<!-- WORKSPACES VIEW: (Electron only) -->
+	{#if isElectron && activeView === "projects"}
 		<div class="flex flex-col gap-0.5">
 			{#if $allWorkspaces.length === 0}
 				<div class="px-2 py-4 text-center text-sm text-gray-400 dark:text-gray-500">
-					No workspace selected
+					No workspaces yet
 				</div>
 			{:else}
 				{#each $allWorkspaces as ws (ws.id)}
@@ -282,7 +330,7 @@
 								class="ml-5 flex flex-col gap-0.5 border-l border-l-[0.5px] border-gray-200 pl-2 dark:border-gray-500"
 								>
 									{#each wsConvs as conv}
-										<NavConversationItem {conv} {oneditConversationTitle} {ondeleteConversation} />
+										<NavConversationItem {conv} workspaceId={ws.id} {oneditConversationTitle} {ondeleteConversation} />
 									{/each}
 								</div>
 							{/if}
@@ -292,8 +340,8 @@
 		</div>
 	{/if}
 
-	<!-- CHAT TAB: Conversations (always shown on web, shown in Chat tab on Electron) -->
-	{#if !isElectron || activeTab === "chat"}
+	<!-- CHATS VIEW: Conversations (always shown on web, shown in Chats view on Electron) -->
+	{#if !isElectron || activeView === "chats"}
 		<div class="flex w-full items-center gap-1.5 px-1 py-1">
 			<button
 				onclick={() => (chatsSectionCollapsed = !chatsSectionCollapsed)}
@@ -329,46 +377,67 @@
 	{/if}
 </div>
 
+<!-- Bottom icon bar -->
 <div
-	class="flex touch-none flex-col gap-1 rounded-r-xl border border-l-0 border-gray-100 p-3 text-sm dark:border-transparent md:mt-3 md:bg-gradient-to-l md:from-gray-50 md:dark:from-gray-800/30"
+	class="flex touch-none items-center justify-center gap-2 border-t border-gray-100 px-3 py-3 dark:border-gray-800"
 >
-	{#if user?.username || user?.email}
-		<div
-			class="group flex items-center gap-1.5 rounded-lg pl-2.5 pr-2 hover:bg-gray-100 dark:hover:bg-gray-700"
-		>
-			<span
-				class="flex h-9 flex-none shrink items-center gap-1.5 truncate pr-2 text-gray-500 dark:text-gray-400"
-				>{user?.username || user?.email}</span
-			>
-
-			<img
-				src="https://huggingface.co/api/users/{user.username}/avatar?redirect=true"
-				class="ml-auto size-4 rounded-full border bg-gray-500 dark:border-white/40"
-				alt=""
-			/>
-		</div>
-	{/if}
+	<!-- Settings -->
 	<a
-		href="{base}/models"
-		class="flex h-9 flex-none items-center gap-1.5 rounded-lg pl-2.5 pr-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+		href="{base}/settings/application"
+		class="flex size-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 		onclick={handleNavItemClick}
+		title="Settings"
 	>
-		Models
-		<span
-			class="ml-auto rounded-md bg-gray-500/5 px-1.5 py-0.5 text-xs text-gray-400 dark:bg-gray-500/20 dark:text-gray-400"
-			>{nModels}</span
-		>
+		<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+			<path
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.212-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"
+			/>
+			<path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+		</svg>
 	</a>
 
+	<!-- Models -->
+	<a
+		href="{base}/models"
+		class="relative flex size-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+		onclick={handleNavItemClick}
+		title="Models ({nModels})"
+	>
+		<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+			<path
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 1-6.23.693L5 15.3m14.8 0 .21 1.847a2.243 2.243 0 0 1-1.274 2.23l-3.622 1.81a2.25 2.25 0 0 1-2.01.013l-3.9-1.624a2.243 2.243 0 0 1-1.346-2.105l.038-1.366M5 15.3l-.05 1.778a2.243 2.243 0 0 0 1.273 2.132l3.676 1.768a2.25 2.25 0 0 0 2.01.012l3.794-1.738a2.243 2.243 0 0 0 1.278-2.132l-.036-1.02"
+			/>
+		</svg>
+		{#if nModels > 0}
+			<span
+				class="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-gray-500 text-[10px] font-medium text-white dark:bg-gray-600"
+			>
+				{nModels}
+			</span>
+		{/if}
+	</a>
+
+	<!-- MCP Servers -->
 	{#if user?.username || user?.email}
 		<button
 			onclick={() => (showMcpModal = true)}
-			class="flex h-9 flex-none items-center gap-1.5 rounded-lg pl-2.5 pr-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+			class="relative flex size-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+			title="MCP Servers"
 		>
-			MCP Servers
+			<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M5.25 14.25h13.5m-13.5 0a3 3 0 0 1-3-3m3 3a3 3 0 1 0 0 6h13.5a3 3 0 1 0 0-6m-16.5-3a3 3 0 0 1 3-3h13.5a3 3 0 0 1 3 3m-19.5 0a4.5 4.5 0 0 1 .9-2.7L5.737 5.1a3.375 3.375 0 0 1 2.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 0 1 .9 2.7m0 0a3 3 0 0 1-3 3m0 3h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Zm-3 6h.008v.008h-.008v-.008Zm0-6h.008v.008h-.008v-.008Z"
+				/>
+			</svg>
 			{#if $enabledServersCount > 0}
 				<span
-					class="ml-auto rounded-md bg-blue-600/10 px-1.5 py-0.5 text-xs text-blue-600 dark:bg-blue-600/20 dark:text-blue-400"
+					class="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-medium text-white"
 				>
 					{$enabledServersCount}
 				</span>
@@ -376,30 +445,37 @@
 		</button>
 	{/if}
 
-	<span class="flex gap-1">
-		<a
-			href="{base}/settings/application"
-			class="flex h-9 flex-none flex-grow items-center gap-1.5 rounded-lg pl-2.5 pr-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-			onclick={handleNavItemClick}
-		>
-			Settings
-		</a>
-		<button
-			onclick={() => {
-				switchTheme();
-			}}
-			aria-label="Toggle theme"
-			class="flex size-9 min-w-[1.5em] flex-none items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-		>
-			{#if browser}
-				{#if isDark}
-					<IconSun />
-				{:else}
-					<IconMoon />
-				{/if}
+	<!-- Theme toggle -->
+	<button
+		onclick={() => {
+			switchTheme();
+		}}
+		aria-label="Toggle theme"
+		class="flex size-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+		title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+	>
+		{#if browser}
+			{#if isDark}
+				<IconSun class="size-5" />
+			{:else}
+				<IconMoon class="size-5" />
 			{/if}
-		</button>
-	</span>
+		{/if}
+	</button>
+
+	<!-- User avatar (if logged in) -->
+	{#if user?.username || user?.email}
+		<div
+			class="flex size-10 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700"
+			title={user?.username || user?.email}
+		>
+			<img
+				src="https://huggingface.co/api/users/{user.username}/avatar?redirect=true"
+				class="size-7 rounded-full"
+				alt={user?.username || user?.email}
+			/>
+		</div>
+	{/if}
 </div>
 
 {#if showMcpModal}

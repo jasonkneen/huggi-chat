@@ -241,11 +241,22 @@ export async function* openAIChatToTextGenerationSingle(
 
 	// Build usage data from completion if available
 	const usageData = completion.usage
-		? {
-				promptTokens: completion.usage.prompt_tokens,
-				completionTokens: completion.usage.completion_tokens,
-				totalTokens: completion.usage.total_tokens,
-			}
+		? (() => {
+				const usage = completion.usage as {
+					prompt_tokens: number;
+					completion_tokens: number;
+					total_tokens: number;
+					prompt_tokens_details?: {
+						cached_tokens?: number;
+					};
+				};
+				return {
+					promptTokens: usage.prompt_tokens,
+					completionTokens: usage.completion_tokens,
+					totalTokens: usage.total_tokens,
+					cachedTokens: usage.prompt_tokens_details?.cached_tokens,
+				};
+			})()
 		: undefined;
 
 	// Yield the content as a single token
