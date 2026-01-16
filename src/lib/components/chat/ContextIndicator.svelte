@@ -14,6 +14,80 @@
 
 	const estimateTokens = (text: string) => Math.ceil((text?.length || 0) / 4);
 
+	// Known context lengths for popular models (from models.dev)
+	const MODEL_CONTEXT_LENGTHS: Record<string, number> = {
+		// OpenAI models
+		"gpt-4o": 128000,
+		"gpt-4o-mini": 128000,
+		"gpt-4-turbo": 128000,
+		"gpt-4": 8192,
+		"gpt-4-32k": 32768,
+		"gpt-3.5-turbo": 16385,
+		"o1": 200000,
+		"o1-mini": 128000,
+		"o1-preview": 128000,
+		"o3-mini": 200000,
+		// Anthropic Claude models
+		"claude-3-5-sonnet": 200000,
+		"claude-3-5-haiku": 200000,
+		"claude-3-opus": 200000,
+		"claude-3-sonnet": 200000,
+		"claude-3-haiku": 200000,
+		"claude-sonnet-4": 200000,
+		"claude-sonnet-4-5": 200000,
+		"claude-opus-4": 200000,
+		"claude-opus-4-5": 200000,
+		// Google Gemini models
+		"gemini-2.0-flash": 1048576,
+		"gemini-2.0-flash-exp": 1048576,
+		"gemini-1.5-pro": 2097152,
+		"gemini-1.5-flash": 1048576,
+		"gemini-1.5-flash-8b": 1048576,
+		"gemini-pro": 32760,
+		// Mistral models
+		"mistral-large": 128000,
+		"mistral-medium": 32000,
+		"mistral-small": 32000,
+		"mixtral-8x7b": 32768,
+		"mixtral-8x22b": 65536,
+		// Llama models
+		"llama-3.1-405b": 128000,
+		"llama-3.1-70b": 128000,
+		"llama-3.1-8b": 128000,
+		"llama-3-70b": 8192,
+		"llama-3-8b": 8192,
+		// DeepSeek models
+		"deepseek-v3": 65536,
+		"deepseek-chat": 65536,
+		"deepseek-coder": 65536,
+		// Qwen models
+		"qwen-2.5-72b": 131072,
+		"qwen-2.5-32b": 131072,
+		"qwen-2.5-14b": 131072,
+		"qwen-2.5-7b": 131072,
+	};
+
+	// Get context length from model config or lookup table
+	const getModelContextLength = (model: Model): number => {
+		// First check if model has explicit truncate parameter
+		if (model.parameters?.truncate) {
+			return model.parameters.truncate;
+		}
+
+		// Try to match model ID/name against known models
+		const modelId = (model.id || model.name || "").toLowerCase();
+
+		// Direct match
+		for (const [key, length] of Object.entries(MODEL_CONTEXT_LENGTHS)) {
+			if (modelId.includes(key.toLowerCase())) {
+				return length;
+			}
+		}
+
+		// Default fallback
+		return 128000;
+	};
+
 	const BASE_SYSTEM_PROMPT = `You are a helpful AI assistant with access to tools. You can execute actions, read files, search the web, and perform tasks on behalf of the user.
 
 CRITICAL: You have real tool capabilities. When the user asks you to do something that requires tools (file access, web search, code execution, etc.), USE THE TOOLS. Do not claim you cannot do something if you have a tool for it.
@@ -52,8 +126,8 @@ Guidelines:
 	}
 
 	const contextBreakdown = $derived.by(() => {
-		// Use model's actual context length
-		const maxContext = currentModel.parameters?.truncate ?? currentModel.contextLength ?? 128000;
+		// Use model's actual context length from parameters or lookup table
+		const maxContext = getModelContextLength(currentModel);
 
 		// System prompt order (matching server-side runMcpFlow.ts):
 		// 1. Tool preprompt (MCP instructions + tool list)
@@ -73,9 +147,28 @@ Guidelines:
 		let userTokens = 0;
 		let assistantTokens = 0;
 
+		// Track actual tokens from API responses
+		let totalActualPromptTokens = 0;
+		let totalActualCompletionTokens = 0;
+		let hasActualUsage = false;
+
 		for (const msg of messages) {
-			const contentTokens = estimateTokens(msg.content || "");
 			const msgOverhead = 10;
+
+			// Check if this message has actual usage data from API
+			if (msg.usage) {
+				hasActualUsage = true;
+				// For assistant messages, use actual completion tokens
+				if (msg.from === "assistant") {
+					totalActualCompletionTokens += msg.usage.completionTokens;
+					// The promptTokens includes all input (system + user + history)
+					// We only take the latest one as it's cumulative
+					totalActualPromptTokens = msg.usage.promptTokens;
+				}
+			}
+
+			// Fall back to estimates for messages without usage data
+			const contentTokens = estimateTokens(msg.content || "");
 
 			if (msg.from === "user") {
 				userTokens += contentTokens + msgOverhead;
@@ -83,9 +176,12 @@ Guidelines:
 					userTokens += msg.files.length * 1000;
 				}
 			} else if (msg.from === "assistant") {
-				assistantTokens += contentTokens + msgOverhead;
-				if (msg.reasoning) {
-					assistantTokens += estimateTokens(msg.reasoning);
+				// Only estimate if no actual usage
+				if (!msg.usage) {
+					assistantTokens += contentTokens + msgOverhead;
+					if (msg.reasoning) {
+						assistantTokens += estimateTokens(msg.reasoning);
+					}
 				}
 			} else if (msg.from === "system") {
 				systemTokens += contentTokens + msgOverhead;
@@ -100,6 +196,25 @@ Guidelines:
 			}
 		}
 
+		// If we have actual usage data, use it for more accurate totals
+		if (hasActualUsage) {
+			// Use actual prompt tokens (includes system, user, tools, history)
+			// and actual completion tokens for assistant output
+			const usedTokens = totalActualPromptTokens + totalActualCompletionTokens;
+			const spareTokens = Math.max(0, maxContext - usedTokens);
+
+			return {
+				system: Math.round(totalActualPromptTokens * 0.2), // Approximate system portion
+				user: Math.round(totalActualPromptTokens * 0.6), // Approximate user portion
+				assistant: totalActualCompletionTokens,
+				tool: Math.round(totalActualPromptTokens * 0.2), // Approximate tool portion
+				spare: spareTokens,
+				total: maxContext,
+				used: usedTokens,
+			};
+		}
+
+		// Fall back to estimates when no actual usage data
 		const usedTokens = systemTokens + userTokens + assistantTokens + toolTokens;
 		const spareTokens = Math.max(0, maxContext - usedTokens);
 

@@ -7,6 +7,9 @@ export type MessageUsage = {
 	promptTokens: number;
 	completionTokens: number;
 	totalTokens: number;
+	cachedTokens?: number; // Cached prompt tokens (OpenAI prompt_tokens_details.cached_tokens)
+	cacheCreationTokens?: number; // Tokens used to create cache (Anthropic cache_creation_input_tokens)
+	cacheReadTokens?: number; // Tokens read from cache (Anthropic cache_read_input_tokens)
 	cost?: number; // Cost in USD (if pricing available)
 };
 

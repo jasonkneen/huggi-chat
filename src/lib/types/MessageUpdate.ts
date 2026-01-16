@@ -141,6 +141,9 @@ export interface MessageUsageUpdate {
 	promptTokens: number;
 	completionTokens: number;
 	totalTokens: number;
+	cachedTokens?: number; // OpenAI: prompt_tokens_details.cached_tokens
+	cacheCreationTokens?: number; // Anthropic: cache_creation_input_tokens
+	cacheReadTokens?: number; // Anthropic: cache_read_input_tokens
 	cost?: number;
 }
 

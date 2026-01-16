@@ -133,12 +133,15 @@
 		message.content.replace(THINK_BLOCK_REGEX, "").trim()
 	);
 
+	type SingleToolBlock = { type: "tool"; uuid: string; updates: MessageToolUpdate[] };
+	type ToolGroupBlock = { type: "toolGroup"; tools: SingleToolBlock[] };
 	type Block =
 		| { type: "text"; content: string }
-		| { type: "tool"; uuid: string; updates: MessageToolUpdate[] }
+		| SingleToolBlock
+		| ToolGroupBlock
 		| { type: "question"; requestId: string; update: MessageAskUserQuestionUpdate };
 
-	type ToolBlock = Extract<Block, { type: "tool" }>;
+	type ToolBlock = SingleToolBlock;
 
 	let blocks = $derived.by(() => {
 		const updates = message.updates ?? [];
@@ -218,7 +221,36 @@
 			res.push({ type: "text" as const, content: message.content });
 		}
 
-		return res;
+		// Group consecutive tool blocks into toolGroups for horizontal chip layout
+		const grouped: Block[] = [];
+		let currentToolGroup: SingleToolBlock[] = [];
+
+		for (const block of res) {
+			if (block.type === "tool") {
+				currentToolGroup.push(block);
+			} else {
+				// Flush any accumulated tool blocks as a group
+				if (currentToolGroup.length > 0) {
+					if (currentToolGroup.length === 1) {
+						grouped.push(currentToolGroup[0]);
+					} else {
+						grouped.push({ type: "toolGroup" as const, tools: currentToolGroup });
+					}
+					currentToolGroup = [];
+				}
+				grouped.push(block);
+			}
+		}
+		// Flush remaining tool blocks
+		if (currentToolGroup.length > 0) {
+			if (currentToolGroup.length === 1) {
+				grouped.push(currentToolGroup[0]);
+			} else {
+				grouped.push({ type: "toolGroup" as const, tools: currentToolGroup });
+			}
+		}
+
+		return grouped;
 	});
 
 	$effect(() => {
@@ -293,14 +325,20 @@
 				{#if isLast && loading && blocks.length === 0}
 					<IconLoading classNames="loading inline ml-2 first:ml-0" />
 				{/if}
-				{#each blocks as block, blockIndex (block.type === "tool" ? `${block.uuid}-${blockIndex}` : block.type === "question" ? `${block.requestId}-${blockIndex}` : `text-${blockIndex}`)}
+				{#each blocks as block, blockIndex (block.type === "tool" ? `tool-${block.uuid}-${blockIndex}` : block.type === "toolGroup" ? `toolGroup-${blockIndex}` : block.type === "question" ? `${block.requestId}-${blockIndex}` : `text-${blockIndex}`)}
 					{@const nextBlock = blocks[blockIndex + 1]}
 					{@const nextBlockHasThink =
 						nextBlock?.type === "text" && THINK_BLOCK_TEST_REGEX.test(nextBlock.content)}
-					{@const nextIsLinkable = nextBlock?.type === "tool" || nextBlockHasThink}
-					{#if block.type === "tool"}
-						<div data-exclude-from-copy class="has-[+.prose]:mb-3 [.prose+&]:mt-4">
-							<ToolUpdate tool={block.updates} {loading} hasNext={nextIsLinkable} />
+					{@const nextIsLinkable = nextBlock?.type === "tool" || nextBlock?.type === "toolGroup" || nextBlockHasThink}
+					{#if block.type === "toolGroup"}
+						<div data-exclude-from-copy class="flex flex-wrap items-start gap-2 has-[+.prose]:mb-3 [.prose+&]:mt-4">
+							{#each block.tools as toolBlock (toolBlock.uuid)}
+								<ToolUpdate tool={toolBlock.updates} {loading} />
+							{/each}
+						</div>
+					{:else if block.type === "tool"}
+						<div data-exclude-from-copy class="flex flex-wrap items-start gap-2 has-[+.prose]:mb-3 [.prose+&]:mt-4">
+							<ToolUpdate tool={block.updates} {loading} />
 						</div>
 					{:else if block.type === "question"}
 						<div data-exclude-from-copy class="has-[+.prose]:mb-3 [.prose+&]:mt-4">

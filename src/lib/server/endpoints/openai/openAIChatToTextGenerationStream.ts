@@ -14,16 +14,35 @@ export async function* openAIChatToTextGenerationStream(
 	let toolBuffer = ""; // legacy hack kept harmless
 	let metadataYielded = false;
 	let thinkOpen = false;
-	let usageData: { promptTokens: number; completionTokens: number; totalTokens: number } | null =
-		null;
+	let usageData: {
+		promptTokens: number;
+		completionTokens: number;
+		totalTokens: number;
+		cachedTokens?: number;
+	} | null = null;
 
 	for await (const completion of completionStream) {
 		// Capture usage data from final chunk (when stream_options.include_usage is true)
 		if (completion.usage) {
+			// Type the usage object to access prompt_tokens_details
+			const usage = completion.usage as {
+				prompt_tokens: number;
+				completion_tokens: number;
+				total_tokens: number;
+				prompt_tokens_details?: {
+					cached_tokens?: number;
+					audio_tokens?: number;
+				};
+				completion_tokens_details?: {
+					reasoning_tokens?: number;
+					audio_tokens?: number;
+				};
+			};
 			usageData = {
-				promptTokens: completion.usage.prompt_tokens,
-				completionTokens: completion.usage.completion_tokens,
-				totalTokens: completion.usage.total_tokens,
+				promptTokens: usage.prompt_tokens,
+				completionTokens: usage.completion_tokens,
+				totalTokens: usage.total_tokens,
+				cachedTokens: usage.prompt_tokens_details?.cached_tokens,
 			};
 		}
 		const retyped = completion as {
@@ -186,7 +205,12 @@ export async function* openAIChatToTextGenerationStream(
 			details: null,
 			usage: usageData,
 		} as TextGenerationStreamOutput & {
-			usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+			usage: {
+				promptTokens: number;
+				completionTokens: number;
+				totalTokens: number;
+				cachedTokens?: number;
+			};
 		};
 	}
 }
