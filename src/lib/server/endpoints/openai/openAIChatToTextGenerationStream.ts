@@ -14,8 +14,18 @@ export async function* openAIChatToTextGenerationStream(
 	let toolBuffer = ""; // legacy hack kept harmless
 	let metadataYielded = false;
 	let thinkOpen = false;
+	let usageData: { promptTokens: number; completionTokens: number; totalTokens: number } | null =
+		null;
 
 	for await (const completion of completionStream) {
+		// Capture usage data from final chunk (when stream_options.include_usage is true)
+		if (completion.usage) {
+			usageData = {
+				promptTokens: completion.usage.prompt_tokens,
+				completionTokens: completion.usage.completion_tokens,
+				totalTokens: completion.usage.total_tokens,
+			};
+		}
 		const retyped = completion as {
 			"x-router-metadata"?: { route: string; model: string; provider?: string };
 		};
@@ -162,6 +172,23 @@ export async function* openAIChatToTextGenerationStream(
 			};
 		}
 	}
+
+	// Yield usage data if captured
+	if (usageData) {
+		yield {
+			token: {
+				id: tokenId++,
+				text: "",
+				logprob: 0,
+				special: true,
+			},
+			generated_text: null,
+			details: null,
+			usage: usageData,
+		} as TextGenerationStreamOutput & {
+			usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+		};
+	}
 }
 
 /**
@@ -188,6 +215,15 @@ export async function* openAIChatToTextGenerationSingle(
 	}
 	const tokenId = 0;
 
+	// Build usage data from completion if available
+	const usageData = completion.usage
+		? {
+				promptTokens: completion.usage.prompt_tokens,
+				completionTokens: completion.usage.completion_tokens,
+				totalTokens: completion.usage.total_tokens,
+			}
+		: undefined;
+
 	// Yield the content as a single token
 	yield {
 		token: {
@@ -206,7 +242,9 @@ export async function* openAIChatToTextGenerationSingle(
 						: {};
 				})()
 			: {}),
+		...(usageData ? { usage: usageData } : {}),
 	} as TextGenerationStreamOutput & {
 		routerMetadata?: { route?: string; model?: string; provider?: string };
+		usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 	};
 }

@@ -231,10 +231,24 @@
 
 	let editMode = $derived(editMsdgId === message.id);
 
-	// Token estimation (~4 chars per token)
+	// Token estimation (~4 chars per token) - used as fallback when actual usage not available
 	const estimateTokens = (text: string) => Math.ceil((text?.length || 0) / 4);
-	let messageTokens = $derived(
+	let estimatedOutputTokens = $derived(
 		estimateTokens(message.content) + (message.reasoning ? estimateTokens(message.reasoning) : 0)
+	);
+
+	// Use actual usage data from API if available, otherwise use estimates
+	let actualInputTokens = $derived(message.usage?.promptTokens ?? 0);
+	let actualOutputTokens = $derived(message.usage?.completionTokens ?? 0);
+	let hasActualUsage = $derived(!!message.usage);
+
+	// Final display values: prefer actual usage, fall back to estimates/props
+	let displayInputTokens = $derived(hasActualUsage ? actualInputTokens : inputTokens);
+	let displayOutputTokens = $derived(hasActualUsage ? actualOutputTokens : estimatedOutputTokens);
+
+	// Cost formatting (if available)
+	let displayCost = $derived(
+		message.usage?.cost ? `$${message.usage.cost.toFixed(4)}` : null
 	);
 	$effect(() => {
 		if (editMode) {
@@ -419,20 +433,24 @@
 							onshowAlternateMsg={(payload) => onshowAlternateMsg?.(payload)}
 						/>
 					{/if}
-					{#if inputTokens > 0 || messageTokens > 0}
+					{#if displayInputTokens > 0 || displayOutputTokens > 0}
 						<span
 							class="ml-1 flex items-center gap-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-200"
-							title="Input / Output tokens (estimated)"
+							title={hasActualUsage ? "Input / Output tokens" : "Input / Output tokens (estimated)"}
 						>
 							<span class="flex items-center gap-0.5">
 								<CarbonArrowUp class="size-3 text-blue-500 dark:text-blue-400" />
-								{inputTokens.toLocaleString()}
+								{displayInputTokens.toLocaleString()}
 							</span>
 							<span class="text-gray-400 dark:text-gray-500">/</span>
 							<span class="flex items-center gap-0.5">
 								<CarbonArrowDown class="size-3 text-green-500 dark:text-green-400" />
-								{messageTokens.toLocaleString()}
+								{displayOutputTokens.toLocaleString()}
 							</span>
+							{#if displayCost}
+								<span class="text-gray-400 dark:text-gray-500">·</span>
+								<span class="text-amber-600 dark:text-amber-400">{displayCost}</span>
+							{/if}
 						</span>
 					{/if}
 				{/if}
@@ -519,13 +537,13 @@
 						onshowAlternateMsg={(payload) => onshowAlternateMsg?.(payload)}
 					/>
 				{/if}
-				{#if messageTokens > 0}
+				{#if estimatedOutputTokens > 0}
 					<span
 						class="ml-1 flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs tabular-nums text-gray-600 dark:bg-gray-700 dark:text-gray-200"
 						title="Input tokens (estimated)"
 					>
 						<CarbonArrowUp class="size-3 text-blue-500 dark:text-blue-400" />
-						{messageTokens.toLocaleString()}
+						{estimatedOutputTokens.toLocaleString()}
 					</span>
 				{/if}
 				{#if (alternatives.length > 1 && editMsdgId === null) || (!loading && !editMode)}

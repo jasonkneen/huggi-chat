@@ -159,7 +159,9 @@ type ExtraConfigKeys =
 	| "METRICS_PORT"
 	| "MCP_SERVERS"
 	| "MCP_FORWARD_HF_USER_TOKEN"
-	| "EXA_API_KEY";
+	| "EXA_API_KEY"
+	| "OPENAI_API_KEY"
+	| "GEMINI_API_KEY";
 
 type ConfigProxy = ConfigManager & { [K in ConfigKey | ExtraConfigKeys]: string };
 

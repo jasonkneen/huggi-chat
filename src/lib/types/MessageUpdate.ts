@@ -10,6 +10,7 @@ export type MessageUpdate =
 	| MessageFinalAnswerUpdate
 	| MessageReasoningUpdate
 	| MessageRouterMetadataUpdate
+	| MessageUsageUpdate
 	| MessageStdioToolRequestUpdate
 	| MessageAskUserQuestionUpdate;
 
@@ -22,6 +23,7 @@ export enum MessageUpdateType {
 	FinalAnswer = "finalAnswer",
 	Reasoning = "reasoning",
 	RouterMetadata = "routerMetadata",
+	Usage = "usage",
 	StdioToolRequest = "stdioToolRequest",
 	AskUserQuestion = "askUserQuestion",
 }
@@ -132,6 +134,14 @@ export interface MessageRouterMetadataUpdate {
 	route: string;
 	model: string;
 	provider?: InferenceProvider;
+}
+
+export interface MessageUsageUpdate {
+	type: MessageUpdateType.Usage;
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+	cost?: number;
 }
 
 export interface MessageStdioToolRequestUpdate {

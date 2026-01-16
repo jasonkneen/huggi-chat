@@ -3,6 +3,13 @@ import type { MessageUpdate } from "./MessageUpdate";
 import type { Timestamps } from "./Timestamps";
 import type { v4 } from "uuid";
 
+export type MessageUsage = {
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+	cost?: number; // Cost in USD (if pricing available)
+};
+
 export type Message = Partial<Timestamps> & {
 	from: "user" | "assistant" | "system";
 	id: ReturnType<typeof v4>;
@@ -25,6 +32,9 @@ export type Message = Partial<Timestamps> & {
 		model: string;
 		provider?: InferenceProvider;
 	};
+
+	// API usage data (actual tokens from API response)
+	usage?: MessageUsage;
 
 	// needed for conversation trees
 	ancestors?: Message["id"][];

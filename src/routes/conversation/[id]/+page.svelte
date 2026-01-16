@@ -425,6 +425,14 @@
 						route: update.route,
 						model: update.model,
 					};
+				} else if (update.type === MessageUpdateType.Usage) {
+					// Update usage data when received (actual token counts from API)
+					messageToWriteTo.usage = {
+						promptTokens: update.promptTokens,
+						completionTokens: update.completionTokens,
+						totalTokens: update.totalTokens,
+						cost: update.cost,
+					};
 				} else if (update.type === MessageUpdateType.StdioToolRequest) {
 					const { requestId, serverId, tool, args } = update;
 					(async () => {

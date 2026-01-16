@@ -9,6 +9,12 @@ export interface ProviderSettings {
 	hfToken: string;
 	hfLoggedIn: boolean;
 
+	// OpenAI
+	openaiApiKey: string;
+
+	// Gemini
+	geminiApiKey: string;
+
 	// Claude Code
 	claudeCodePath: string;
 	claudeCodeVerified: boolean;
@@ -31,6 +37,9 @@ export interface ProviderSettings {
 const defaultSettings: ProviderSettings = {
 	hfToken: "",
 	hfLoggedIn: false,
+
+	openaiApiKey: "",
+	geminiApiKey: "",
 
 	claudeCodePath: "/usr/local/bin/claude",
 	claudeCodeVerified: false,

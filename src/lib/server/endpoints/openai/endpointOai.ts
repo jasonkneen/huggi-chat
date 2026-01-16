@@ -201,6 +201,8 @@ export async function endpointOai(
 				model: model.id ?? model.name,
 				messages: messagesOpenAI,
 				stream: streamingSupported,
+				// Request usage data in streaming responses
+				...(streamingSupported ? { stream_options: { include_usage: true } } : {}),
 				// Support two different ways of specifying token limits depending on the model
 				...(useCompletionTokens
 					? { max_completion_tokens: parameters?.max_tokens }

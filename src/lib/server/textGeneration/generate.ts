@@ -86,6 +86,20 @@ export async function* generate(
 				continue;
 			}
 		}
+
+		// Check if this output contains usage data (actual token counts from API)
+		const outputWithUsage = output as {
+			usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+		};
+		if (outputWithUsage.usage) {
+			yield {
+				type: MessageUpdateType.Usage,
+				promptTokens: outputWithUsage.usage.promptTokens,
+				completionTokens: outputWithUsage.usage.completionTokens,
+				totalTokens: outputWithUsage.usage.totalTokens,
+			};
+			continue;
+		}
 		// text generation completed
 		if (output.generated_text) {
 			let interrupted =

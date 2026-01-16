@@ -42,6 +42,23 @@ export const init: ServerInit = async () => {
 
 	// TODO: move this code on a started server hook, instead of using a "building" flag
 	if (!building) {
+		// Load saved API keys from file (for local/desktop usage)
+		try {
+			const { promises: fs } = await import("fs");
+			const { join } = await import("path");
+			const keysFile = join(process.cwd(), ".api-keys.json");
+			const data = await fs.readFile(keysFile, "utf-8").catch(() => "{}");
+			const savedKeys = JSON.parse(data);
+			if (savedKeys.openaiApiKey) {
+				process.env.OPENAI_API_KEY = savedKeys.openaiApiKey;
+			}
+			if (savedKeys.geminiApiKey) {
+				process.env.GEMINI_API_KEY = savedKeys.geminiApiKey;
+			}
+		} catch {
+			// No saved keys file, continue with env vars
+		}
+
 		// Ensure legacy env expected by some libs: map OPENAI_API_KEY -> HF_TOKEN if absent
 		const canonicalToken = config.OPENAI_API_KEY || config.HF_TOKEN;
 		if (canonicalToken) {

@@ -11,6 +11,7 @@ import {
 	endpointClaudeAgentSdkParametersSchema,
 	endpointClaudeAgentSdk,
 } from "./claudeAgentSdk/endpointClaudeAgentSdk";
+import { endpointGeminiParametersSchema, endpointGemini } from "./gemini/endpointGemini";
 import type { Model } from "$lib/types/Model";
 import type { ObjectId } from "mongodb";
 
@@ -38,10 +39,12 @@ export type Endpoint = (
 export const endpoints = {
 	openai: endpointOai,
 	"claude-agent-sdk": endpointClaudeAgentSdk,
+	gemini: endpointGemini,
 };
 
 export const endpointSchema = z.discriminatedUnion("type", [
 	endpointOAIParametersSchema,
 	endpointClaudeAgentSdkParametersSchema,
+	endpointGeminiParametersSchema,
 ]);
 export default endpoints;

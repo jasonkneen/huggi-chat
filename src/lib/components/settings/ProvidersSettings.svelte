@@ -198,6 +198,86 @@
 		</div>
 	</div>
 
+	<!-- OpenAI -->
+	<div
+		class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
+	>
+		<div class="border-b border-gray-200 px-3 py-3 dark:border-gray-700">
+			<div class="flex items-center gap-2">
+				<div
+					class="flex size-5 items-center justify-center rounded bg-gradient-to-br from-emerald-400 to-teal-600 text-white"
+				>
+					<span class="text-[10px] font-bold">AI</span>
+				</div>
+				<h3 class="text-[14px] font-semibold text-gray-800 dark:text-gray-200">OpenAI</h3>
+			</div>
+		</div>
+		<div class="px-3 py-3">
+			<div class="flex flex-col gap-3">
+				<div>
+					<label class="mb-1 block text-[12px] font-medium text-gray-700 dark:text-gray-300">
+						API Key
+					</label>
+					<input
+						type="password"
+						placeholder="sk-..."
+						class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+						value={$providerSettings.openaiApiKey}
+						oninput={(e) =>
+							providerSettings.update((s) => ({ ...s, openaiApiKey: e.currentTarget.value }))}
+					/>
+					<p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+						Get your API key from <a
+							href="https://platform.openai.com/api-keys"
+							target="_blank"
+							class="underline hover:text-gray-700 dark:hover:text-gray-300">platform.openai.com/api-keys</a
+						>
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Gemini -->
+	<div
+		class="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
+	>
+		<div class="border-b border-gray-200 px-3 py-3 dark:border-gray-700">
+			<div class="flex items-center gap-2">
+				<div
+					class="flex size-5 items-center justify-center rounded bg-gradient-to-br from-blue-400 to-indigo-600 text-white"
+				>
+					<span class="text-[10px] font-bold">G</span>
+				</div>
+				<h3 class="text-[14px] font-semibold text-gray-800 dark:text-gray-200">Google Gemini</h3>
+			</div>
+		</div>
+		<div class="px-3 py-3">
+			<div class="flex flex-col gap-3">
+				<div>
+					<label class="mb-1 block text-[12px] font-medium text-gray-700 dark:text-gray-300">
+						API Key
+					</label>
+					<input
+						type="password"
+						placeholder="AIza..."
+						class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+						value={$providerSettings.geminiApiKey}
+						oninput={(e) =>
+							providerSettings.update((s) => ({ ...s, geminiApiKey: e.currentTarget.value }))}
+					/>
+					<p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+						Get your API key from <a
+							href="https://aistudio.google.com/apikey"
+							target="_blank"
+							class="underline hover:text-gray-700 dark:hover:text-gray-300">aistudio.google.com/apikey</a
+						>
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Claude Code -->
 	{#if isElectron}
 		<div
