@@ -54,6 +54,7 @@
 	let navWidth = $state(290);
 	let rightSidebarWidth = $state(300);
 	let isResizing = $state(false);
+	let isResizingRight = $state(false);
 
 	// Electron detection for right sidebar
 	const isElectron = browser && !!(window as any).electronAPI;
@@ -65,6 +66,15 @@
 			const parsed = parseInt(saved, 10);
 			if (parsed >= 200 && parsed <= 600) {
 				navWidth = parsed;
+			}
+		}
+
+		// Load saved right sidebar width
+		const savedRight = localStorage.getItem('rightSidebarWidth');
+		if (savedRight) {
+			const parsed = parseInt(savedRight, 10);
+			if (parsed >= 200 && parsed <= 500) {
+				rightSidebarWidth = parsed;
 			}
 		}
 
@@ -89,6 +99,32 @@
 		const onMouseUp = () => {
 			isResizing = false;
 			localStorage.setItem('navWidth', String(navWidth));
+			window.removeEventListener('mousemove', onMouseMove);
+			window.removeEventListener('mouseup', onMouseUp);
+		};
+
+		window.addEventListener('mousemove', onMouseMove);
+		window.addEventListener('mouseup', onMouseUp);
+	}
+
+	function startResizeRight(e: MouseEvent) {
+		isResizingRight = true;
+		e.preventDefault();
+
+		const startX = e.clientX;
+		const startWidth = rightSidebarWidth;
+
+		const onMouseMove = (e: MouseEvent) => {
+			if (!isResizingRight) return;
+			// For right panel, dragging left increases width
+			const delta = startX - e.clientX;
+			const newWidth = Math.max(200, Math.min(500, startWidth + delta));
+			rightSidebarWidth = newWidth;
+		};
+
+		const onMouseUp = () => {
+			isResizingRight = false;
+			localStorage.setItem('rightSidebarWidth', String(rightSidebarWidth));
 			window.removeEventListener('mousemove', onMouseMove);
 			window.removeEventListener('mouseup', onMouseUp);
 		};
@@ -306,7 +342,7 @@
 <BackgroundGenerationPoller />
 
 <div
-	class="fixed grid h-full w-screen overflow-hidden bg-white text-smd dark:bg-transparent dark:text-gray-300 {isResizing ? '' : 'transition-[300ms] [transition-property:grid-template-columns]'}"
+	class="fixed grid h-full w-screen overflow-hidden bg-white text-smd dark:bg-transparent dark:text-gray-300 {isResizing || isResizingRight ? '' : 'transition-[300ms] [transition-property:grid-template-columns]'}"
 	style="grid-template-columns: {!isNavCollapsed ? `${navWidth}px` : '0px'} 1fr {isElectron && $rightPanelOpen ? `${rightSidebarWidth}px` : '0px'}; grid-template-rows: auto 1fr;"
 >
 	{#if canShare}
@@ -368,23 +404,35 @@
 	<!-- Main content area -->
 	<div class="relative h-full overflow-hidden" style="grid-column: 2; grid-row: 1 / -1;">
 		{@render children?.()}
-
-		<!-- Right panel toggle button (Electron only) -->
-		{#if isElectron}
-			<button
-				onclick={() => rightPanelOpen.update(v => !v)}
-				class="absolute right-4 top-4 z-20 flex size-8 items-center justify-center rounded-lg border border-gray-200 bg-white/90 text-gray-500 shadow-sm transition-colors hover:bg-white hover:text-gray-700 dark:border-gray-700 dark:bg-gray-800/90 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200
-					{$rightPanelOpen ? 'bg-gray-100 dark:bg-gray-700' : ''}"
-				title={$rightPanelOpen ? 'Close files panel' : 'Open files panel'}
-			>
-				<IconSidebar class="size-4 {$rightPanelOpen ? 'rotate-180' : ''}" />
-			</button>
-		{/if}
 	</div>
+
+	<!-- Right sidebar collapse/expand button (Electron only) -->
+	{#if isElectron}
+		<ExpandNavigation
+			isCollapsed={!$rightPanelOpen}
+			onClick={() => rightPanelOpen.update(v => !v)}
+			classNames="absolute inset-y-0 z-10 my-auto *:transition-transform rotate-180"
+			style="right: {$rightPanelOpen ? rightSidebarWidth - 8 : 0}px; transition: right 300ms;"
+		/>
+	{/if}
 
 	<!-- Right sidebar (Electron only) -->
 	{#if isElectron}
-		<div style="grid-column: 3; grid-row: 1 / -1;">
+		<div
+			class="relative {isResizingRight ? '' : 'transition-all duration-300'}"
+			style="grid-column: 3; grid-row: 1 / -1; width: {$rightPanelOpen ? `${rightSidebarWidth}px` : '0px'};"
+		>
+			<!-- Resize handle - wide hit area, thin visual -->
+			{#if $rightPanelOpen}
+				<div
+					class="absolute left-0 top-0 h-full w-3 translate-x-1 cursor-col-resize transition-colors z-10"
+					onmousedown={startResizeRight}
+					role="separator"
+					aria-label="Resize files panel"
+				>
+					<div class="absolute left-1 top-0 h-full w-0.5 bg-transparent hover:bg-gray-700/40 dark:hover:bg-gray-600/40 transition-colors pointer-events-none"></div>
+				</div>
+			{/if}
 			<RightSidebar width={rightSidebarWidth} />
 		</div>
 	{/if}

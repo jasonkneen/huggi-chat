@@ -38,7 +38,7 @@ export async function* generateClaudeAgentSdk(
 	const thinkingLevel = (locals as unknown as Record<string, unknown>)?.thinkingLevel as
 		| number
 		| undefined;
-	const budgetTokens = thinkingLevel !== undefined ? thinkingTokensMap[thinkingLevel] : undefined;
+	const maxThinkingTokens = thinkingLevel !== undefined ? thinkingTokensMap[thinkingLevel] : undefined;
 
 	// Load local tools and MCP tools for this request
 	let systemPrompt = preprompt || "";
@@ -97,7 +97,7 @@ export async function* generateClaudeAgentSdk(
 		logger.error({ error }, "[claude-agent-sdk] Failed to load tools, continuing without them");
 	}
 
-	logger.info({ modelId, thinkingLevel, budgetTokens }, "[claude-agent-sdk] Starting generation");
+	logger.info({ modelId, thinkingLevel, maxThinkingTokens }, "[claude-agent-sdk] Starting generation");
 
 	try {
 		const response = query({
@@ -106,7 +106,7 @@ export async function* generateClaudeAgentSdk(
 				model: modelId,
 				systemPrompt,
 				includePartialMessages: true,
-				...(budgetTokens !== undefined && { budgetTokens }),
+				...(maxThinkingTokens !== undefined && { maxThinkingTokens }),
 			},
 		});
 
@@ -128,11 +128,15 @@ export async function* generateClaudeAgentSdk(
 
 					if (block?.type === "thinking") {
 						inThinking = true;
+						// Yield reasoning status for dedicated reasoning UI
 						yield {
 							type: MessageUpdateType.Reasoning,
 							subtype: MessageReasoningUpdateType.Status,
 							status: "Thinking...",
 						};
+						// Also yield <think> tag to content stream for UI detection
+						generatedText += "<think>";
+						yield { type: MessageUpdateType.Stream, token: "<think>" };
 					} else if (block?.type === "tool_use") {
 						currentToolUseId = block.id || "";
 						currentToolName = block.name || "unknown_tool";
@@ -156,11 +160,15 @@ export async function* generateClaudeAgentSdk(
 					const delta = event.delta;
 
 					if (delta?.type === "thinking_delta" && delta.thinking) {
+						// Yield to dedicated reasoning stream
 						yield {
 							type: MessageUpdateType.Reasoning,
 							subtype: MessageReasoningUpdateType.Stream,
 							token: delta.thinking,
 						};
+						// Also yield to content stream for UI rendering
+						generatedText += delta.thinking;
+						yield { type: MessageUpdateType.Stream, token: delta.thinking };
 					} else if (delta?.type === "text_delta" && delta.text) {
 						if (!inThinking) {
 							generatedText += delta.text;
@@ -172,11 +180,15 @@ export async function* generateClaudeAgentSdk(
 				} else if (event.type === "content_block_stop") {
 					if (inThinking) {
 						inThinking = false;
+						// Yield reasoning status for dedicated reasoning UI
 						yield {
 							type: MessageUpdateType.Reasoning,
 							subtype: MessageReasoningUpdateType.Status,
 							status: "Done thinking",
 						};
+						// Also yield closing </think> tag to content stream
+						generatedText += "</think>\n\n";
+						yield { type: MessageUpdateType.Stream, token: "</think>\n\n" };
 					} else if (currentToolUseId) {
 						const uuid = toolUuidMap.get(currentToolUseId) || randomUUID();
 						let parsedArgs: Record<string, string | number | boolean> = {};

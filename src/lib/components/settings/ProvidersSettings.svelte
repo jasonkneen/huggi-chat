@@ -26,8 +26,17 @@
 	let ollamaStatus = $state<"checking" | "online" | "offline" | null>(null);
 	let lmStudioStatus = $state<"checking" | "online" | "offline" | null>(null);
 
-	onMount(() => {
+	onMount(async () => {
 		isElectron = typeof window !== "undefined" && !!window.electronAPI;
+
+		// Sync any locally-stored API keys to the server on mount
+		const settings = $providerSettings;
+		if (settings.geminiApiKey && settings.geminiApiKey.startsWith("AIza")) {
+			await syncApiKeyToServer("geminiApiKey", settings.geminiApiKey);
+		}
+		if (settings.openaiApiKey && settings.openaiApiKey.startsWith("sk-")) {
+			await syncApiKeyToServer("openaiApiKey", settings.openaiApiKey);
+		}
 	});
 
 	async function verifyClaudeCode() {
@@ -153,6 +162,27 @@
 	function setLmStudioEnabled(v: boolean) {
 		providerSettings.update((s) => ({ ...s, lmStudioEnabled: v }));
 	}
+
+	// Debounce timer for API key sync
+	let apiKeySyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+	// Sync API keys to server (for Gemini, OpenAI that need server-side access)
+	async function syncApiKeyToServer(key: "geminiApiKey" | "openaiApiKey", value: string) {
+		// Debounce: wait 500ms after user stops typing
+		if (apiKeySyncTimer) clearTimeout(apiKeySyncTimer);
+		apiKeySyncTimer = setTimeout(async () => {
+			if (!value) return; // Don't sync empty values
+			try {
+				await fetch("/api/providers/keys", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ [key]: value }),
+				});
+			} catch (e) {
+				console.error("Failed to sync API key:", e);
+			}
+		}, 500);
+	}
 </script>
 
 <div class="flex w-full flex-col gap-4">
@@ -263,8 +293,11 @@
 						placeholder="AIza..."
 						class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
 						value={$providerSettings.geminiApiKey}
-						oninput={(e) =>
-							providerSettings.update((s) => ({ ...s, geminiApiKey: e.currentTarget.value }))}
+						oninput={(e) => {
+							const value = e.currentTarget.value;
+							providerSettings.update((s) => ({ ...s, geminiApiKey: value }));
+							syncApiKeyToServer("geminiApiKey", value);
+						}}
 					/>
 					<p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
 						Get your API key from <a

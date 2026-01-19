@@ -207,8 +207,11 @@ const addEndpoint = (m: Awaited<ReturnType<typeof processModel>>) => ({
 		if (endpoint.type === "claude-agent-sdk") {
 			return await endpoints["claude-agent-sdk"]({ ...endpoint, model: m });
 		}
+		if (endpoint.type === "gemini") {
+			return await endpoints.gemini({ ...endpoint, model: m });
+		}
 		if (endpoint.type !== "openai") {
-			throw new Error("Only 'openai' and 'claude-agent-sdk' endpoint types are supported");
+			throw new Error("Only 'openai', 'claude-agent-sdk', and 'gemini' endpoint types are supported");
 		}
 		return await endpoints.openai({ ...endpoint, model: m });
 	},
@@ -528,8 +531,56 @@ const buildModels = async (): Promise<ProcessedModel[]> => {
 			},
 		] as ModelConfig[];
 
+		// Gemini models
+		const pinnedGeminiModels = [
+			{
+				id: "gemini-2.5-pro",
+				name: "gemini-2.5-pro",
+				displayName: "Gemini 2.5 Pro",
+				description: "Google's most advanced reasoning model with adaptive thinking",
+				logoUrl: "https://www.gstatic.com/lamda/images/gemini_favicon_f069958c85030456e93de685481c559f160ea06b.png",
+				multimodal: true,
+				multimodalAcceptedMimetypes: ["image/*"],
+				supportsTools: true,
+				endpoints: [{ type: "gemini" as const }],
+			},
+			{
+				id: "gemini-2.5-flash",
+				name: "gemini-2.5-flash",
+				displayName: "Gemini 2.5 Flash",
+				description: "Google's fast model with thinking capabilities",
+				logoUrl: "https://www.gstatic.com/lamda/images/gemini_favicon_f069958c85030456e93de685481c559f160ea06b.png",
+				multimodal: true,
+				multimodalAcceptedMimetypes: ["image/*"],
+				supportsTools: true,
+				endpoints: [{ type: "gemini" as const }],
+			},
+			{
+				id: "gemini-3-pro-preview",
+				name: "gemini-3-pro-preview",
+				displayName: "Gemini 3 Pro",
+				description: "Google's latest reasoning-first model for complex agentic workflows",
+				logoUrl: "https://www.gstatic.com/lamda/images/gemini_favicon_f069958c85030456e93de685481c559f160ea06b.png",
+				multimodal: true,
+				multimodalAcceptedMimetypes: ["image/*"],
+				supportsTools: true,
+				endpoints: [{ type: "gemini" as const }],
+			},
+			{
+				id: "gemini-3-flash-preview",
+				name: "gemini-3-flash-preview",
+				displayName: "Gemini 3 Flash",
+				description: "Google's fastest Gemini 3 model with Pro-level intelligence",
+				logoUrl: "https://www.gstatic.com/lamda/images/gemini_favicon_f069958c85030456e93de685481c559f160ea06b.png",
+				multimodal: true,
+				multimodalAcceptedMimetypes: ["image/*"],
+				supportsTools: true,
+				endpoints: [{ type: "gemini" as const }],
+			},
+		] as ModelConfig[];
+
 		const pinnedModels = await Promise.all(
-			pinnedClaudeModels.map((m) =>
+			[...pinnedClaudeModels, ...pinnedGeminiModels].map((m) =>
 				processModel(m)
 					.then(addEndpoint)
 					.then((model) => ({

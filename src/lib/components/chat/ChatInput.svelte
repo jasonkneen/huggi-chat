@@ -511,50 +511,6 @@
 									</DropdownMenu.SubContent>
 								</DropdownMenu.Sub>
 
-								{#if isElectron}
-									<DropdownMenu.Sub>
-										<DropdownMenu.SubTrigger
-											class="flex h-9 select-none items-center gap-1 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 data-[state=open]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 dark:data-[state=open]:bg-white/10 sm:h-8"
-										>
-											<CarbonFolder class="size-4 opacity-90 dark:opacity-80" />
-											Add to Workspace
-											<CarbonChevronRight class="ml-auto size-4 opacity-70" />
-										</DropdownMenu.SubTrigger>
-										<DropdownMenu.SubContent
-											class="z-50 min-w-[160px] rounded-xl border border-gray-200 bg-white/95 p-1 text-gray-800 shadow-lg backdrop-blur dark:border-gray-700/60 dark:bg-gray-800/95 dark:text-gray-100"
-											sideOffset={10}
-										>
-											{#each $allWorkspaces as ws (ws.id)}
-												<DropdownMenu.CheckboxItem
-													checked={currentConvWorkspaceIds.includes(ws.id)}
-													onCheckedChange={() => handleToggleWorkspace(ws.id)}
-													closeOnSelect={false}
-													class="flex h-9 select-none items-center gap-2 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 sm:h-8"
-												>
-													{#snippet children({ checked })}
-														{#if checked}
-															<CarbonCheckmark class="size-4 text-blue-600 dark:text-blue-400" />
-														{:else}
-															<CarbonFolder class="size-4 opacity-70" />
-														{/if}
-														<span class="truncate">{ws.name}</span>
-													{/snippet}
-												</DropdownMenu.CheckboxItem>
-											{/each}
-											{#if $allWorkspaces.length > 0}
-												<DropdownMenu.Separator class="my-1 h-px bg-gray-200 dark:bg-gray-700" />
-											{/if}
-											<DropdownMenu.Item
-												class="flex h-9 select-none items-center gap-2 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 sm:h-8"
-												onSelect={handleAddToNewWorkspace}
-											>
-												<IconPlus class="size-4 opacity-70" />
-												Other...
-											</DropdownMenu.Item>
-										</DropdownMenu.SubContent>
-									</DropdownMenu.Sub>
-								{/if}
-
 								<!-- MCP Servers submenu -->
 								<DropdownMenu.Sub>
 									<DropdownMenu.SubTrigger
@@ -676,55 +632,7 @@
 						</div>
 					{/if}
 
-					{#if isElectron && currentConvWorkspacesList.length > 0}
-						<DropdownMenu.Root bind:open={isWorkspaceDropdownOpen}>
-							<DropdownMenu.Trigger
-								class="ml-1.5 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-green-500/10 bg-green-600/10 pl-2 pr-2 text-xs font-semibold text-green-700 hover:bg-green-600/15 dark:bg-green-600/20 dark:text-green-400 dark:hover:bg-green-600/25 sm:h-7"
-								title="Workspaces attached to this conversation"
-							>
-								<CarbonFolder class="size-3.5" />
-								Workspaces ({currentConvWorkspacesList.length})
-							</DropdownMenu.Trigger>
-							<DropdownMenu.Portal>
-								<DropdownMenu.Content
-									class="z-50 min-w-[180px] rounded-xl border border-gray-200 bg-white/95 p-1 text-gray-800 shadow-lg backdrop-blur dark:border-gray-700/60 dark:bg-gray-800/95 dark:text-gray-100"
-									side="top"
-									sideOffset={8}
-									align="start"
-								>
-									{#each currentConvWorkspacesList as ws (ws.id)}
-										<div
-											class="flex h-9 items-center gap-2 rounded-md px-2 text-sm text-gray-700 dark:text-gray-200 sm:h-8"
-										>
-											<CarbonFolder class="size-4 text-green-600 dark:text-green-400" />
-											<span class="flex-1 truncate">{ws.name}</span>
-											<button
-												class="grid size-5 place-items-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-white/10 dark:hover:text-gray-300"
-												aria-label="Remove workspace from conversation"
-												onclick={() =>
-													workspaces.removeConversationFromWorkspace(
-														getConversationId() ?? "",
-														ws.id
-													)}
-												type="button"
-											>
-												<CarbonClose class="size-3" />
-											</button>
-										</div>
-									{/each}
-									<DropdownMenu.Separator class="my-1 h-px bg-gray-200 dark:bg-gray-700" />
-									<DropdownMenu.Item
-										class="flex h-9 select-none items-center gap-2 rounded-md px-2 text-sm text-gray-700 data-[highlighted]:bg-gray-100 focus-visible:outline-none dark:text-gray-200 dark:data-[highlighted]:bg-white/10 sm:h-8"
-										onSelect={handleAddToNewWorkspace}
-									>
-										<IconPlus class="size-4 opacity-70" />
-										Add another workspace...
-									</DropdownMenu.Item>
-								</DropdownMenu.Content>
-							</DropdownMenu.Portal>
-						</DropdownMenu.Root>
-					{/if}
-				</div>
+									</div>
 			{/if}
 		</div>
 	{/if}

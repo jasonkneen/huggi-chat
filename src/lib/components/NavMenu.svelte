@@ -9,6 +9,7 @@
 
 <script lang="ts">
 	import { base } from "$app/paths";
+	import { goto } from "$app/navigation";
 
 	import Logo from "$lib/components/icons/Logo.svelte";
 	import IconSun from "$lib/components/icons/IconSun.svelte";
@@ -35,6 +36,7 @@
 		allWorkspaces,
 		activeWorkspace,
 		conversationWorkspaces,
+		pendingNewChatWorkspaceId,
 	} from "$lib/stores/workspaces";
 	import IconFolder from "~icons/carbon/folder";
 	import IconFolderOpen from "~icons/carbon/folder-open";
@@ -178,6 +180,21 @@
 	function handleSelectWorkspace(workspaceId: string | null) {
 		workspaces.setActiveWorkspace(workspaceId);
 	}
+
+	function handleNewChat(workspaceId?: string) {
+		isAborted.set(true);
+		if (requireAuthUser()) return;
+
+		// Set pending workspace if provided
+		if (workspaceId) {
+			workspaces.setPendingNewChatWorkspace(workspaceId);
+			workspaces.setActiveWorkspace(workspaceId);
+		} else {
+			workspaces.setPendingNewChatWorkspace(null);
+		}
+
+		goto(`${base}/`, { invalidateAll: true });
+	}
 </script>
 
 <svelte:window onclick={handleClickOutside} />
@@ -191,17 +208,6 @@
 	>
 		<img src="/chatui/robot-avatar.png" alt="Logo" class="size-10 object-contain" />
 		{publicConfig.PUBLIC_APP_NAME}
-	</a>
-	<a
-		href={`${base}/`}
-		onclick={handleNewChatClick}
-		class="flex rounded-lg border border-[0.5px] px-2 py-0.5 text-center shadow-sm hover:shadow-none sm:text-smd
-			{$activeWorkspace
-			? 'border-blue-500/30 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-900/30 dark:text-blue-400'
-			: 'border-gray-200 bg-white dark:border-gray-500 dark:bg-gray-700'}"
-		title="Ctrl/Cmd + Shift + O"
-	>
-		New Chat
 	</a>
 </div>
 
@@ -318,6 +324,13 @@
 								{/if}
 							</button>
 							<button
+								onclick={() => handleNewChat(ws.id)}
+								class="hidden rounded p-0.5 text-gray-400 group-hover:block hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-600 dark:hover:text-gray-300"
+								title="New chat in workspace"
+							>
+								<IconAdd class="size-3" />
+							</button>
+							<button
 								onclick={() => handleRemoveWorkspace(ws.id)}
 								class="hidden rounded p-0.5 text-gray-400 group-hover:block hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-600 dark:hover:text-gray-300"
 								title="Remove workspace"
@@ -325,10 +338,20 @@
 								<IconClose class="size-3" />
 							</button>
 						</div>
-						{#if !ws.isCollapsed && wsConvs.length > 0}
+						{#if !ws.isCollapsed && (wsConvs.length > 0 || $pendingNewChatWorkspaceId === ws.id)}
 							<div
 								class="ml-5 flex flex-col gap-0.5 border-l border-l-[0.5px] border-gray-200 pl-2 dark:border-gray-500"
 								>
+									<!-- Pending new chat placeholder -->
+									{#if $pendingNewChatWorkspaceId === ws.id}
+										<a
+											href="{base}/"
+											class="flex min-h-[2.5rem] items-start gap-2.5 rounded-lg bg-blue-50 px-2 py-2 dark:bg-blue-900/30"
+										>
+											<div class="mt-1.5 size-2 flex-shrink-0 animate-pulse rounded-full bg-blue-400"></div>
+											<span class="text-sm text-blue-700 dark:text-blue-400">New agent</span>
+										</a>
+									{/if}
 									{#each wsConvs as conv}
 										<NavConversationItem {conv} workspaceId={ws.id} {oneditConversationTitle} {ondeleteConversation} />
 									{/each}
@@ -354,6 +377,13 @@
 				{/if}
 				<span>Chats</span>
 				<span class="text-xs text-gray-400">{conversations.length}</span>
+			</button>
+			<button
+				onclick={() => handleNewChat()}
+				class="flex size-5 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+				title="New chat"
+			>
+				<IconAdd class="size-3.5" />
 			</button>
 		</div>
 

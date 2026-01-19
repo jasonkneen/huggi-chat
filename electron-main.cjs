@@ -160,8 +160,8 @@ function createWindow() {
 			: appearanceSettings.vibrancy;
 
 	const win = new BrowserWindow({
-		width: Math.floor(width * 0.8),
-		height: Math.floor(height * 0.8),
+		width: Math.floor(width * 0.35),
+		height: Math.floor(height * 0.5),
 		minWidth: 800,
 		minHeight: 600,
 		frame: false,

@@ -9,7 +9,7 @@
 	import { ERROR_MESSAGES, error } from "$lib/stores/errors";
 	import { findCurrentModel } from "$lib/utils/models";
 	import type { Message } from "$lib/types/Message";
-	import { MessageUpdateStatus, MessageUpdateType } from "$lib/types/MessageUpdate";
+	import { MessageUpdateStatus, MessageUpdateType, MessageReasoningUpdateType } from "$lib/types/MessageUpdate";
 	import titleUpdate from "$lib/stores/titleUpdate";
 	import file2base64 from "$lib/utils/file2base64";
 	import { addChildren } from "$lib/utils/tree/addChildren";
@@ -464,6 +464,12 @@
 							});
 						}
 					})();
+				} else if (update.type === MessageUpdateType.Reasoning) {
+					// Handle reasoning/thinking updates from Claude models
+					if (update.subtype === MessageReasoningUpdateType.Stream && "token" in update) {
+						messageToWriteTo.reasoning ??= "";
+						messageToWriteTo.reasoning += update.token;
+					}
 				}
 			}
 		} catch (err) {

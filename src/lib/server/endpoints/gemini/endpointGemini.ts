@@ -32,7 +32,7 @@ interface GeminiContent {
 interface GeminiStreamChunk {
 	candidates?: Array<{
 		content?: {
-			parts?: Array<{ text?: string }>;
+			parts?: Array<{ text?: string; thought?: boolean }>;
 			role?: string;
 		};
 		finishReason?: string;
@@ -40,6 +40,7 @@ interface GeminiStreamChunk {
 	usageMetadata?: {
 		promptTokenCount: number;
 		candidatesTokenCount: number;
+		thoughtsTokenCount?: number;
 		totalTokenCount: number;
 	};
 }
@@ -47,15 +48,17 @@ interface GeminiStreamChunk {
 export async function endpointGemini(
 	input: z.input<typeof endpointGeminiParametersSchema>
 ): Promise<Endpoint> {
-	const { baseURL, apiKey, model, multimodal } = endpointGeminiParametersSchema.parse(input);
-
-	if (!apiKey) {
-		throw new Error("Gemini API key is required. Set GEMINI_API_KEY in your environment.");
-	}
+	const { baseURL, apiKey: configApiKey, model, multimodal } = endpointGeminiParametersSchema.parse(input);
 
 	const imageProcessor = makeImageProcessor(multimodal.image);
 
-	return async ({ messages, preprompt, generateSettings, isMultimodal, abortSignal }) => {
+	return async ({ messages, preprompt, generateSettings, isMultimodal, abortSignal, locals }) => {
+		// Read API key at request time (not build time) to pick up keys saved after startup
+		const apiKey = configApiKey || process.env.GEMINI_API_KEY || "";
+
+		if (!apiKey) {
+			throw new Error("Gemini API key is required. Set it in Settings > Providers or as GEMINI_API_KEY environment variable.");
+		}
 		// Convert messages to Gemini format
 		const geminiContents: GeminiContent[] = [];
 
@@ -122,21 +125,56 @@ export async function endpointGemini(
 
 		// Build request body
 		const parameters = { ...model.parameters, ...generateSettings };
+
+		// Get thinking level from locals
+		const thinkingLevel = (locals as unknown as Record<string, unknown>)?.thinkingLevel as
+			| number
+			| undefined;
+
+		// Map thinking level to Gemini thinkingBudget (for 2.5 models) or thinkingLevel (for 3.x models)
+		// Level 0 = off, 1-4 = increasing thinking budget
+		const thinkingBudgetMap: Record<number, number> = {
+			0: 0,      // Disabled
+			1: 1024,   // Low
+			2: 4096,   // Medium
+			3: 16384,  // High
+			4: -1,     // Dynamic (max)
+		};
+
+		const modelId = model.id ?? model.name;
+		const isGemini3 = modelId.includes("gemini-3");
+		const enableThinking = thinkingLevel !== undefined && thinkingLevel > 0;
+
+		const generationConfig: Record<string, unknown> = {
+			temperature: parameters?.temperature,
+			topP: parameters?.top_p,
+			maxOutputTokens: parameters?.max_tokens,
+			stopSequences: parameters?.stop,
+		};
+
+		// Add thinking configuration based on model version
+		if (enableThinking) {
+			if (isGemini3) {
+				// Gemini 3 uses thinkingLevel: "low" | "medium" | "high"
+				const levelNames = ["low", "low", "medium", "high", "high"];
+				generationConfig.thinkingLevel = levelNames[thinkingLevel] || "high";
+			} else {
+				// Gemini 2.5 uses thinkingBudget (number of tokens or -1 for dynamic)
+				generationConfig.thinkingBudget = thinkingBudgetMap[thinkingLevel] ?? -1;
+			}
+		}
+
 		const requestBody: Record<string, unknown> = {
 			contents: geminiContents,
-			generationConfig: {
-				temperature: parameters?.temperature,
-				topP: parameters?.top_p,
-				maxOutputTokens: parameters?.max_tokens,
-				stopSequences: parameters?.stop,
-			},
+			generationConfig,
+			// Enable thought summaries in response when thinking is on
+			...(enableThinking && { includeThoughts: true }),
 		};
 
 		if (systemInstruction) {
 			requestBody.systemInstruction = { parts: [{ text: systemInstruction }] };
 		}
 
-		const modelId = model.id ?? model.name;
 		const url = `${baseURL}/${modelId}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
 		const response = await fetch(url, {
@@ -205,17 +243,23 @@ async function* geminiStreamToTextGeneration(body: ReadableStream<Uint8Array>): 
 						};
 					}
 
-					// Extract text content
+					// Extract content from all parts (may include thinking and text)
 					const candidate = chunk.candidates?.[0];
-					const text = candidate?.content?.parts?.[0]?.text || "";
+					const parts = candidate?.content?.parts || [];
 					const isLast = candidate?.finishReason === "STOP";
 
-					if (text) {
-						generatedText += text;
+					for (const part of parts) {
+						const text = part.text || "";
+						if (!text) continue;
+
+						// Wrap thinking content in <think> tags for UI detection
+						const outputText = part.thought ? `<think>${text}</think>` : text;
+
+						generatedText += outputText;
 						yield {
 							token: {
 								id: tokenId++,
-								text,
+								text: outputText,
 								logprob: 0,
 								special: false,
 							},

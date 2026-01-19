@@ -59,9 +59,9 @@
 		height: 1.75rem;
 		padding: 0 0.5rem;
 		border-radius: 9999px;
-		border: 1px solid rgba(139, 92, 246, 0.15);
-		background: rgba(139, 92, 246, 0.1);
-		color: rgb(109, 40, 217);
+		border: 1px solid rgba(107, 114, 128, 0.3);
+		background: rgb(75, 85, 99);
+		color: white;
 		font-size: 0.75rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -69,8 +69,8 @@
 		user-select: none;
 
 		&:hover:not(.disabled) {
-			background: rgba(139, 92, 246, 0.15);
-			border-color: rgba(139, 92, 246, 0.25);
+			background: rgb(107, 114, 128);
+			border-color: rgba(107, 114, 128, 0.5);
 		}
 
 		&:active:not(.disabled) {
@@ -84,13 +84,13 @@
 	}
 
 	:global(.dark) .thinking-chip {
-		background: rgba(139, 92, 246, 0.2);
-		border-color: rgba(139, 92, 246, 0.25);
-		color: rgb(196, 181, 253);
+		background: rgb(75, 85, 99);
+		border-color: rgba(156, 163, 175, 0.3);
+		color: white;
 
 		&:hover:not(.disabled) {
-			background: rgba(139, 92, 246, 0.25);
-			border-color: rgba(139, 92, 246, 0.35);
+			background: rgb(107, 114, 128);
+			border-color: rgba(156, 163, 175, 0.5);
 		}
 	}
 

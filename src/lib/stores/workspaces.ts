@@ -15,6 +15,8 @@ interface WorkspacesState {
 	noWorkspaceCollapsed: boolean;
 	// Maps conversationId -> workspaceId (one chat = one workspace max)
 	conversationWorkspaces: Record<string, string>;
+	// Pending workspace for new chat (assigned immediately when conversation gets ID)
+	pendingNewChatWorkspaceId: string | null;
 }
 
 const STORAGE_KEY = "chat-ui-workspaces";
@@ -25,6 +27,7 @@ function loadFromStorage(): WorkspacesState {
 		activeWorkspaceId: null,
 		noWorkspaceCollapsed: false,
 		conversationWorkspaces: {},
+		pendingNewChatWorkspaceId: null,
 	};
 
 	if (!browser) {
@@ -179,6 +182,36 @@ function createWorkspacesStore() {
 		isConversationInAnyWorkspace(conversationId: string): boolean {
 			return conversationId in get({ subscribe }).conversationWorkspaces;
 		},
+
+		// Set pending workspace for new chat
+		setPendingNewChatWorkspace(workspaceId: string | null) {
+			update((state) => ({
+				...state,
+				pendingNewChatWorkspaceId: workspaceId,
+			}));
+		},
+
+		// Consume pending workspace (called when conversation gets ID)
+		consumePendingNewChatWorkspace(conversationId: string): string | null {
+			const state = get({ subscribe });
+			const pendingId = state.pendingNewChatWorkspaceId;
+			if (pendingId) {
+				update((s) => ({
+					...s,
+					pendingNewChatWorkspaceId: null,
+					conversationWorkspaces: {
+						...s.conversationWorkspaces,
+						[conversationId]: pendingId,
+					},
+				}));
+			}
+			return pendingId;
+		},
+
+		// Get pending workspace ID
+		getPendingNewChatWorkspace(): string | null {
+			return get({ subscribe }).pendingNewChatWorkspaceId;
+		},
 	};
 }
 
@@ -192,3 +225,4 @@ export const activeWorkspace = derived(
 );
 export const noWorkspaceCollapsed = derived(workspaces, ($ws) => $ws.noWorkspaceCollapsed);
 export const conversationWorkspaces = derived(workspaces, ($ws) => $ws.conversationWorkspaces);
+export const pendingNewChatWorkspaceId = derived(workspaces, ($ws) => $ws.pendingNewChatWorkspaceId);

@@ -120,3 +120,24 @@
 {"ts":"2026-01-16T13:30:14.169Z","event":"mcp_start","model":"baidu/ERNIE-4.5-0.3B-PT","mmEnabled":false,"toolCount":6,"forcedToolName":""}
 {"ts":"2026-01-16T13:30:14.169Z","event":"mcp_gate","model":"baidu/ERNIE-4.5-0.3B-PT","supportsTools":false,"forceTools":false,"toolsEnabled":true,"hasConfiguredTools":true,"stdioToolCount":0,"httpServerCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
 {"ts":"2026-01-16T13:30:34.644Z","event":"mcp_error","model":"baidu/ERNIE-4.5-0.3B-PT","error":"Error: 500 status code (no body)"}
+{"ts":"2026-01-16T13:37:33.029Z","event":"mcp_info","stage":"stdio_only","model":"baidu/ERNIE-4.5-0.3B-PT","stdioToolCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T13:37:33.030Z","event":"mcp_gate","model":"baidu/ERNIE-4.5-0.3B-PT","supportsTools":false,"forceTools":false,"toolsEnabled":true,"hasConfiguredTools":true,"stdioToolCount":0,"httpServerCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T13:37:33.030Z","event":"mcp_start","model":"baidu/ERNIE-4.5-0.3B-PT","mmEnabled":false,"toolCount":6,"forcedToolName":""}
+{"ts":"2026-01-16T13:37:33.029Z","event":"mcp_tools_listed","model":"baidu/ERNIE-4.5-0.3B-PT","httpToolCount":0,"stdioToolCount":0,"localToolCount":6,"totalToolCount":6}
+{"ts":"2026-01-16T13:37:53.304Z","event":"mcp_error","model":"baidu/ERNIE-4.5-0.3B-PT","error":"Error: 500 status code (no body)"}
+{"ts":"2026-01-16T14:52:48.270Z","event":"mcp_info","stage":"stdio_only","model":"openai/gpt-oss-20b","stdioToolCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T14:52:48.270Z","event":"mcp_tools_listed","model":"openai/gpt-oss-20b","httpToolCount":0,"stdioToolCount":0,"localToolCount":6,"totalToolCount":6}
+{"ts":"2026-01-16T14:52:48.270Z","event":"mcp_gate","model":"openai/gpt-oss-20b","supportsTools":true,"forceTools":true,"toolsEnabled":true,"hasConfiguredTools":true,"stdioToolCount":0,"httpServerCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T14:52:48.270Z","event":"mcp_start","model":"openai/gpt-oss-20b","mmEnabled":false,"toolCount":6,"forcedToolName":""}
+{"ts":"2026-01-16T15:45:37.018Z","event":"mcp_info","stage":"stdio_only","model":"gemini-3-flash-preview","stdioToolCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T15:45:37.019Z","event":"mcp_gate","model":"gemini-3-flash-preview","supportsTools":true,"forceTools":true,"toolsEnabled":true,"hasConfiguredTools":true,"stdioToolCount":0,"httpServerCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T15:45:37.019Z","event":"mcp_tools_listed","model":"gemini-3-flash-preview","httpToolCount":0,"stdioToolCount":0,"localToolCount":6,"totalToolCount":6}
+{"ts":"2026-01-16T15:45:37.019Z","event":"mcp_start","model":"gemini-3-flash-preview","mmEnabled":true,"toolCount":6,"forcedToolName":""}
+{"ts":"2026-01-16T15:45:37.280Z","event":"mcp_fallback","model":"gemini-3-flash-preview","error":"Error: Gemini API key is required. Set it in Settings > Providers or as GEMINI_API_KEY environment variable."}
+{"ts":"2026-01-16T15:45:37.280Z","event":"mcp_error","model":"gemini-3-flash-preview","error":"Error: 400 The requested model 'gemini-3-flash-preview' does not exist."}
+{"ts":"2026-01-16T15:45:45.641Z","event":"mcp_info","stage":"stdio_only","model":"gemini-3-flash-preview","stdioToolCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T15:45:45.641Z","event":"mcp_tools_listed","model":"gemini-3-flash-preview","httpToolCount":0,"stdioToolCount":0,"localToolCount":6,"totalToolCount":6}
+{"ts":"2026-01-16T15:45:45.641Z","event":"mcp_gate","model":"gemini-3-flash-preview","supportsTools":true,"forceTools":true,"toolsEnabled":true,"hasConfiguredTools":true,"stdioToolCount":0,"httpServerCount":0,"localToolCount":6,"hasWorkspaceTools":true,"wantsToolList":false}
+{"ts":"2026-01-16T15:45:45.641Z","event":"mcp_start","model":"gemini-3-flash-preview","mmEnabled":true,"toolCount":6,"forcedToolName":""}
+{"ts":"2026-01-16T15:45:45.813Z","event":"mcp_error","model":"gemini-3-flash-preview","error":"Error: 400 The requested model 'gemini-3-flash-preview' does not exist."}
+{"ts":"2026-01-16T15:45:45.813Z","event":"mcp_fallback","model":"gemini-3-flash-preview","error":"Error: Gemini API key is required. Set it in Settings > Providers or as GEMINI_API_KEY environment variable."}
